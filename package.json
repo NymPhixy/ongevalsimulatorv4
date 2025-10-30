@@ -1,0 +1,19 @@
+{
+  "name": "aframe-ongeval-simulatie",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:quest": "adb reverse tcp:5173 tcp:5173 && npm run dev",
+    "build": "vite build",
+    "preview": "vite preview --port 5173",
+    "start": "http-server . -p 8080"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  },
+  "dependencies": {
+    "aframe": "^1.7.1"
+  }
+}
