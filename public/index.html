@@ -175,7 +175,7 @@ adb devices
     <a-scene collision-check background="color: #aed9ff">
         <!-- Camera rig with Quest 1 movement and controller support -->
         <a-entity id="cameraRig" position="0 0 6">
-            <a-entity camera position="0 1.6 0">
+            <a-entity camera look-controls position="0 1.6 0">
                 <!-- Cursor uses a 3s fuse to avoid accidental selections in VR -->
                 <!-- Added id so we can attach a visual progress ring for gaze feedback -->
                 <a-entity id="sceneCursor" cursor="fuse: true; fuseTimeout: 3000" position="0 0 -1"
@@ -186,22 +186,16 @@ adb devices
 
             <!-- Quest 1 Controllers: laser pointers + trigger selection + thumbstick movement -->
             <!-- Left controller: laser pointer for pointing and selecting, thumbstick for movement -->
-            <a-entity id="leftController" 
-                      oculus-touch-controls="hand: left; model: false" 
-                      laser-controls="hand: left"
-                      raycaster="objects: .interactable, .gazeTarget, .vrPhoneBtn; far: 10"
-                      line="color: #2f80ed; opacity: 0.75" 
-                      controller-select
-                      thumbstick-movement="speed: 0.1; acceleration: 30">
+            <a-entity id="leftController" oculus-touch-controls="hand: left; model: false" laser-controls="hand: left"
+                raycaster="objects: .interactable, .gazeTarget, .vrPhoneBtn; far: 10"
+                line="color: #2f80ed; opacity: 0.75" controller-select
+                thumbstick-movement="speed: 0.1; acceleration: 30">
             </a-entity>
 
             <!-- Right controller: laser pointer for pointing and selecting -->
-            <a-entity id="rightController" 
-                      oculus-touch-controls="hand: right; model: false" 
-                      laser-controls="hand: right"
-                      raycaster="objects: .interactable, .gazeTarget, .vrPhoneBtn; far: 10"
-                      line="color: #2f80ed; opacity: 0.75" 
-                      controller-select>
+            <a-entity id="rightController" oculus-touch-controls="hand: right; model: false"
+                laser-controls="hand: right" raycaster="objects: .interactable, .gazeTarget, .vrPhoneBtn; far: 10"
+                line="color: #2f80ed; opacity: 0.75" controller-select>
             </a-entity>
         </a-entity>
 
@@ -876,9 +870,9 @@ adb devices
                 if (!rig) return;
 
                 // Get thumbstick axes (left thumbstick)
-                const gamepad = el.components['oculus-touch-controls'] && 
-                               el.components['oculus-touch-controls'].controller;
-                
+                const gamepad = el.components['oculus-touch-controls'] &&
+                    el.components['oculus-touch-controls'].controller;
+
                 if (!gamepad || !gamepad.axes) return;
 
                 const x = gamepad.axes[0]; // left/right
@@ -888,12 +882,12 @@ adb devices
                 if (Math.abs(x) > 0.1 || Math.abs(z) > 0.1) {
                     const camera = document.querySelector('[camera]');
                     const rotation = camera.object3D.rotation;
-                    
+
                     // Calculate movement direction based on camera rotation
                     const direction = new THREE.Vector3(x, 0, z);
                     direction.applyEuler(new THREE.Euler(0, rotation.y, 0));
                     direction.normalize();
-                    
+
                     // Apply movement to rig
                     const currentPos = rig.getAttribute('position');
                     const deltaSeconds = delta / 1000;
