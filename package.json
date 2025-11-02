@@ -16,4 +16,8 @@
   "dependencies": {
     "aframe": "^1.7.1"
   }
+  ,
+  "engines": {
+    "node": ">=18 <19"
+  }
 }
