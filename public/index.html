@@ -1,5 +1,6 @@
 adb version
-adb devices<!doctype html>
+adb devices
+<!doctype html>
 <html lang="nl">
 
 <head>
@@ -162,6 +163,9 @@ adb devices<!doctype html>
     </div>
     <button id="reset" class="btn">Reset</button>
     <button id="readQuestion">Lees vraag</button>
+    <!-- Top-left VR entry knop voor snelle toegang -->
+    <button id="enterVR" class="btn btn-neutral" style="position:absolute; left:10px; top:10px; z-index:300;">Speel in
+        VR</button>
 
     <div id="phone">
         <div id="phoneScreen">112 centrale: Wat is uw noodmelding?</div>
@@ -172,7 +176,9 @@ adb devices<!doctype html>
         <!-- Camera: spawn recht tegenover slachtoffer (spawn z=6) -->
         <a-entity id="cameraRig" position="0 0 6">
             <a-entity camera look-controls wasd-controls position="0 1.6 0">
-                <a-entity cursor="fuse: true; fuseTimeout: 900" position="0 0 -1"
+                <!-- Cursor uses a 3s fuse to avoid accidental selections in VR -->
+                <!-- Added id so we can attach a visual progress ring for gaze feedback -->
+                <a-entity id="sceneCursor" cursor="fuse: true; fuseTimeout: 3000" position="0 0 -1"
                     geometry="primitive: ring; radiusInner: 0.01; radiusOuter: 0.02"
                     material="color: black; shader: flat">
                 </a-entity>
@@ -309,6 +315,12 @@ adb devices<!doctype html>
         <a-text id="plasterLabel" value="Pleister" align="center" color="#111" position="1.2 0.6 1.4"
             scale="0.6 0.6 0.6" visible="false"></a-text>
 
+        <!-- Handdoek: nieuw object voor de behandelingsvolgorde (stypen -> spray -> pleister) -->
+        <a-box id="towel" width="0.35" height="0.02" depth="0.22" color="#f5cda7" position="0.8 0.14 1.2"
+            class="interactable" visible="false"></a-box>
+        <a-text id="towelLabel" value="Handdoek" align="center" color="#111" position="0.8 0.7 1.2" scale="0.6 0.6 0.6"
+            visible="false"></a-text>
+
         <!-- Ambulance (komt vanaf andere kant dan de impact) -->
         <a-entity id="ambulance" position="0 0 25" rotation="0 180 0" visible="false">
             <a-box depth="2.5" height="1.2" width="1.6" color="#f1c40f" position="0 0.6 0"></a-box>
@@ -355,6 +367,43 @@ adb devices<!doctype html>
         // Importeer A-Frame als module en verkrijg de globale AFRAME export.
         // Hierdoor is `AFRAME` gegarandeerd beschikbaar in deze module.
         import AFRAME from 'aframe';
+        // cursor progress + audio helper
+        const sceneCursor = document.querySelector('#sceneCursor');
+        // create a small progress ring (thetaLength animates from 0->360 during gaze)
+        if (sceneCursor && !document.querySelector('#cursorProgress')) {
+            try {
+                const prog = document.createElement('a-entity');
+                prog.setAttribute('id', 'cursorProgress');
+                prog.setAttribute('geometry', 'primitive: ring; radiusInner: 0.021; radiusOuter: 0.03; thetaLength: 0');
+                prog.setAttribute('material', 'color: #2f80ed; shader: flat; opacity: 0.95');
+                // keep it slightly in front so it reads above the center ring
+                prog.setAttribute('position', '0 0 0');
+                sceneCursor.appendChild(prog);
+            } catch (e) { /* ignore on failure */ }
+        }
+
+        // small confirm tone using WebAudio (no external asset required)
+        let __audioCtx = null;
+        function playConfirmTone() {
+            try {
+                if (!__audioCtx) __audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const ctx = __audioCtx;
+                const o = ctx.createOscillator();
+                const g = ctx.createGain();
+                o.type = 'sine';
+                o.frequency.value = 880;
+                g.gain.value = 0.0001;
+                o.connect(g); g.connect(ctx.destination);
+                const now = ctx.currentTime;
+                g.gain.setValueAtTime(0.0001, now);
+                g.gain.exponentialRampToValueAtTime(0.2, now + 0.02);
+                o.start(now);
+                g.gain.exponentialRampToValueAtTime(0.0001, now + 0.12);
+                o.stop(now + 0.13);
+            } catch (e) {
+                // audio may be blocked if user gesture missing; ignore silently
+            }
+        }
         const panel = document.getElementById('panel');
         const ui = document.getElementById('ui');
         const message = document.getElementById('message');
@@ -379,6 +428,21 @@ adb devices<!doctype html>
         const plasterLabel = document.getElementById('plasterLabel');
         const medic1 = document.getElementById('medic1');
         const medic2 = document.getElementById('medic2');
+        const towel = document.getElementById('towel');
+        const towelLabel = document.getElementById('towelLabel');
+        const enterVRBtn = document.getElementById('enterVR');
+        const sceneEl = document.querySelector('a-scene');
+        let isInVR = false;
+
+        // Short VR tip texts for interactable elements
+        try {
+            spray.setAttribute('data-tip', 'Kijk 3s om op te pakken');
+            plaster.setAttribute('data-tip', 'Kijk 3s om op te pakken');
+            towel.setAttribute('data-tip', 'Kijk 3s om op te pakken');
+            person.setAttribute('data-tip', 'Kijk 3s naar het slachtoffer om een vast voorwerp toe te passen');
+            lookLeft.setAttribute('data-tip', 'Kijk 3s om links te controleren');
+            lookRight.setAttribute('data-tip', 'Kijk 3s om rechts te controleren');
+        } catch (e) { /* ignore if elements not present yet */ }
 
         let step = 0;
         let crashed = false;
@@ -388,11 +452,17 @@ adb devices<!doctype html>
         let plasterApplied = false;
         let lookedLeft = false;
         let lookedRight = false;
+        let woundStopped = false; // nieuw: handdoek toegepast om bloeding tijdelijk te stelpen
         let heldItem = null; // 'spray' or 'plaster'
         let ambulanceEnRoute = false;
         let ambulanceArriving = false;
 
         function showPanel(html, options = []) {
+            // If in VR show an in-scene VR HUD instead of the DOM panel
+            if (isInVR) {
+                showVrPanel(html, options);
+                return;
+            }
             message.innerHTML = html;
             ui.innerHTML = '';
             options.forEach(opt => {
@@ -406,6 +476,11 @@ adb devices<!doctype html>
         }
 
         function showFeedback(text, isGood, next) {
+            // If in VR show feedback in VR HUD
+            if (isInVR) {
+                showVrPanel(text, [{ text: (isGood ? 'Verder' : 'Opnieuw proberen'), good: isGood, action: () => { hideVrPanel(); if (isGood && typeof next === 'function') next(); if (!isGood) reset(); } }]);
+                return;
+            }
             message.innerHTML = text;
             ui.innerHTML = '';
             const btn = document.createElement('button');
@@ -422,6 +497,14 @@ adb devices<!doctype html>
 
         // vervang of voeg toe: vraag-interface zonder hints vooraf
         function showQuestion(html, choices = []) {
+            // If in VR show question in VR HUD
+            if (isInVR) {
+                const opts = choices.map(ch => ({ text: ch.text, good: false, action: () => evaluateAnswer(ch) }));
+                // mark these options as a question so the VR HUD renders neutral buttons
+                opts._isQuestion = true;
+                showVrPanel(html, opts);
+                return;
+            }
             message.innerHTML = html;
             ui.innerHTML = '';
             // choices: [{ text: '...', correct: true/false, feedback: '...','next': fn }]
@@ -468,11 +551,12 @@ adb devices<!doctype html>
         }
 
         // Komponenten voor interactiviteit
+        // gaze-trigger reageert op click en op onze custom 'gaze-confirm' (3s fuse)
         AFRAME.registerComponent('gaze-trigger', {
             schema: { id: { type: 'string' } },
             init: function () {
                 const el = this.el;
-                el.addEventListener('click', () => {
+                const handle = () => {
                     const id = this.data.id;
                     if (id === 'left') {
                         lookedLeft = true;
@@ -483,15 +567,15 @@ adb devices<!doctype html>
                         el.setAttribute('color', '#9ae6b4');
                         el.setAttribute('scale', '1.3 1.3 1.3');
                     }
-                    // als beide bekeken: verberg balletjes en ga verder INPLAATS VAN TELEPORT
                     if (lookedLeft && lookedRight) {
                         lookLeft.setAttribute('visible', false);
                         lookRight.setAttribute('visible', false);
                         document.getElementById('lookHint').setAttribute('visible', false);
-                        // Laat gebruiker zelf naar slachtoffer lopen — ga direct verder in de flow
                         nextStep();
                     }
-                });
+                };
+                el.addEventListener('click', handle);
+                el.addEventListener('gaze-confirm', handle);
             }
         });
 
@@ -511,6 +595,53 @@ adb devices<!doctype html>
                     this.el.removeAttribute('animation__color');
                     this.el.setAttribute('scale', '1 1 1');
                 }
+            }
+        });
+
+        // Gaze-select: emits 'gaze-confirm' after a fuse (default 3000ms).
+        // Also emits 'gaze-start'/'gaze-cancel' for visual feedback.
+        AFRAME.registerComponent('gaze-select', {
+            schema: { fuseTime: { type: 'int', default: 3000 } },
+            init: function () {
+                this.timer = null;
+                const el = this.el;
+                const start = () => {
+                    // visual feedback: slightly scale target
+                    el.setAttribute('scale', '1.15 1.15 1.15');
+                    // show small VR-tip if available
+                    try { if (isInVR && el.getAttribute && el.getAttribute('data-tip')) showVrTip(el.getAttribute('data-tip'), 2500); } catch (e) { }
+                    // animate cursor progress ring (thetaLength 0 -> 360)
+                    try {
+                        const prog = document.querySelector('#cursorProgress');
+                        if (prog) {
+                            prog.removeAttribute('animation__prog');
+                            prog.setAttribute('animation__prog', `property: geometry.thetaLength; to: 360; dur: ${this.data.fuseTime}; easing: linear`);
+                        }
+                    } catch (e) { }
+                    this.timer = setTimeout(() => {
+                        // play short confirm tone and emit confirm event
+                        playConfirmTone();
+                        el.emit('gaze-confirm');
+                        this.timer = null;
+                        // clear progress ring
+                        try { const prog = document.querySelector('#cursorProgress'); if (prog) { prog.removeAttribute('animation__prog'); prog.setAttribute('geometry', 'thetaLength: 0'); } } catch (e) { }
+                    }, this.data.fuseTime);
+                };
+                const stop = () => {
+                    if (this.timer) clearTimeout(this.timer);
+                    this.timer = null;
+                    el.setAttribute('scale', '1 1 1');
+                    try { const prog = document.querySelector('#cursorProgress'); if (prog) { prog.removeAttribute('animation__prog'); prog.setAttribute('geometry', 'thetaLength: 0'); } } catch (e) { }
+                };
+                el.addEventListener('mouseenter', start);
+                el.addEventListener('mouseleave', stop);
+                // support non-VR (mouse) quick selection
+                el.addEventListener('mousedown', () => {
+                    stop();
+                    // immediate confirm on mouse down with tiny tone
+                    playConfirmTone();
+                    el.emit('gaze-confirm');
+                });
             }
         });
 
@@ -546,14 +677,36 @@ adb devices<!doctype html>
                 el.addEventListener('click', tryPickup);
                 el.addEventListener('mousedown', tryPickup);
                 el.addEventListener('touchstart', tryPickup);
+                // support gaze-confirm selection
+                el.addEventListener('gaze-confirm', tryPickup);
             }
         });
 
         // klik op slachtoffer om gebruikt item toe te passen (negeer klikken vóór EHBO-stap / geen 'niets vast' melding)
-        person.addEventListener('click', () => {
+        // Handler voor gebruik van vastgehouden items op het slachtoffer
+        function applyHeldItemToPerson() {
             if (step < 4) return; // stil genegeerd zolang EHBO nog niet beschikbaar is
             if (!heldItem) return; // geen feedback tonen wanneer niets vast
-            if (heldItem === 'spray') {
+            if (heldItem === 'towel') {
+                if (!woundStopped) {
+                    woundStopped = true;
+                    // visuele cue: slightly reduce wound visibility
+                    wound.setAttribute('scale', '0.85 0.85 0.85');
+                    dropItem('towel', { x: 0.8, y: 0.14, z: 1.2 });
+                    heldItem = null;
+                    showFeedback('✅ Handdoek gebruikt om de bloeding te stelpen.', true, () => {
+                        // spray now can be used
+                        updateGlows();
+                    });
+                } else {
+                    showFeedback('De bloeding is al gestelpt.', true);
+                }
+            }
+            else if (heldItem === 'spray') {
+                if (!woundStopped) {
+                    showFeedback('❌ Eerst stelpen met een handdoek!', false);
+                    return;
+                }
                 if (!woundDisinfected) {
                     wound.setAttribute('color', '#e67e22');
                     woundDisinfected = true;
@@ -568,6 +721,10 @@ adb devices<!doctype html>
                     showFeedback('De wond is al gedesinfecteerd.', true, () => { });
                 }
             } else if (heldItem === 'plaster') {
+                if (!woundStopped) {
+                    showFeedback('❌ Eerst stelpen met handdoek!', false);
+                    return;
+                }
                 if (!woundDisinfected) {
                     showFeedback('❌ Eerst desinfecteren! Gebruik eerst de spray.', false);
                     return;
@@ -595,7 +752,11 @@ adb devices<!doctype html>
                     showFeedback('Pleister al aangebracht.', true);
                 }
             }
-        });
+        }
+
+        person.addEventListener('click', applyHeldItemToPerson);
+        // support gaze-confirm on person (3s look) as well
+        person.addEventListener('gaze-confirm', applyHeldItemToPerson);
 
         function dropItem(id, pos) {
             const item = document.getElementById(id);
@@ -610,11 +771,41 @@ adb devices<!doctype html>
         }
 
         function updateGlows() {
-            // items glow only when EHBO stage active and ambulance is en route
+            // Enforce ordered glows so only the next correct item glows:
+            // - If towel not yet applied => towel glows (other items off)
+            // - Else if towel applied and not disinfected => spray glows
+            // - Else if disinfected and not plasterApplied => plaster glows
             const activeBase = (step >= 4 && ambulanceEnRoute);
-            spray.setAttribute('glow', { active: (activeBase && !woundDisinfected) });
-            plaster.setAttribute('glow', { active: (activeBase && woundDisinfected && !plasterApplied) });
-            // highlight wound location in a distinct pulsing color while treatable
+            if (!activeBase) {
+                // none glow if not active
+                spray.setAttribute('glow', { active: false });
+                plaster.setAttribute('glow', { active: false });
+                towel.setAttribute('glow', { active: false });
+            } else {
+                if (!woundStopped) {
+                    // handdoek must be used first
+                    towel.setAttribute('glow', { active: true });
+                    spray.setAttribute('glow', { active: false });
+                    plaster.setAttribute('glow', { active: false });
+                } else if (woundStopped && !woundDisinfected) {
+                    // after towel, disinfect
+                    towel.setAttribute('glow', { active: false });
+                    spray.setAttribute('glow', { active: true });
+                    plaster.setAttribute('glow', { active: false });
+                } else if (woundDisinfected && !plasterApplied) {
+                    // final step: plaster
+                    towel.setAttribute('glow', { active: false });
+                    spray.setAttribute('glow', { active: false });
+                    plaster.setAttribute('glow', { active: true });
+                } else {
+                    // all done
+                    towel.setAttribute('glow', { active: false });
+                    spray.setAttribute('glow', { active: false });
+                    plaster.setAttribute('glow', { active: false });
+                }
+            }
+
+            // highlight wound location in a distinct pulsing color while treatable (before disinfected)
             const woundActive = (step >= 4 && ambulanceEnRoute && !woundDisinfected);
             if (woundActive) {
                 // pulse scale + color to draw attention
@@ -670,6 +861,7 @@ adb devices<!doctype html>
                                 lookRight.setAttribute('visible', true);
                                 lookLeft.setAttribute('gaze-trigger', { id: 'left' });
                                 lookRight.setAttribute('gaze-trigger', { id: 'right' });
+                                if (isInVR) showVrTip('Tip: Kijk 3 seconden naar een object om te selecteren. Lees wat er op het scherm staat.');
                             }
                         }
                     ]);
@@ -689,6 +881,7 @@ adb devices<!doctype html>
                         { text: 'C. Je roept in paniek om hulp', correct: false, feedback: 'Paniek helpt niet; blijf rustig en controleer aanspreekbaarheid.' }
                     ]
                 );
+                if (isInVR) showVrTip('Tip: Kijk 3 seconden naar het juiste antwoord om te kiezen.');
             }
             else if (step === 3) {
                 showQuestion(
@@ -700,6 +893,7 @@ adb devices<!doctype html>
                         { text: 'C. Je zoekt iemand anders die misschien wil bellen', correct: false, feedback: 'Je kunt iemand vragen, maar jij bent aanwezig — bel direct.' }
                     ]
                 );
+                if (isInVR) showVrTip('Tip: Open de telefoon en kijk 3s naar de toetsen om 112 in te toetsen.');
             }
             else if (step === 4) {
                 // EHBO stap: items zichtbaar nadat 112 is gestart (en ambulance en route)
@@ -714,15 +908,31 @@ adb devices<!doctype html>
                                 ehbo.setAttribute('visible', true);
                                 spray.setAttribute('visible', true);
                                 plaster.setAttribute('visible', true);
+                                towel.setAttribute('visible', true);
                                 sprayLabel.setAttribute('visible', true);
                                 plasterLabel.setAttribute('visible', true);
+                                towelLabel.setAttribute('visible', true);
                                 // maak items nu pas interactief en zet glow-standaard
                                 spray.setAttribute('pickable', '');
                                 plaster.setAttribute('pickable', '');
+                                towel.setAttribute('pickable', '');
+                                // enable gaze selection for VR users
+                                spray.setAttribute('gaze-select', '');
+                                plaster.setAttribute('gaze-select', '');
+                                towel.setAttribute('gaze-select', '');
+                                // enforce the EHBO interaction sequence visibly for the user:
+                                // handdoek eerst, daarna spray, dan pleister
+                                // ensure ambulanceEnRoute flag so glow logic activates while treating
+                                ambulanceEnRoute = true;
+                                // set explicit initial glow states to communicate order
+                                towel.setAttribute('glow', { active: true });
                                 spray.setAttribute('glow', { active: false });
                                 plaster.setAttribute('glow', { active: false });
-                                // pickable-component aanwezig; glow activeert zodra ambulanceEnRoute true
+                                // pickable-component aanwezig; update glows for subsequent changes
                                 updateGlows();
+                                if (isInVR) showVrTip('Tip: Pak eerst de handdoek (kijk 3s), daarna spray en als laatste pleister.');
+                                // Also create a visible floating callout above the towel to draw attention
+                                // (callout/pointer removed to restore previous behaviour)
                             }
                         },
                         {
@@ -811,6 +1021,17 @@ adb devices<!doctype html>
 
         // Open phone UI: toon toetsenbord zodat gebruiker zelf 112 kan intoetsen
         function openPhone() {
+            // If user is in VR, show the in-scene VR phone panel instead of the DOM phone
+            if (isInVR) {
+                // ensure the vrPhone exists
+                if (!window.vrPhone) createVrPhone();
+                window.vrPhoneNumber = '';
+                // update display text
+                const txt = window.vrPhone.querySelector('#vrPhoneNumberText');
+                if (txt) txt.setAttribute('value', '');
+                window.vrPhone.setAttribute('visible', true);
+                return;
+            }
             panel.style.display = 'none';
             phone.style.display = 'flex';
             phoneScreen.textContent = "Toets noodnummer:";
@@ -880,6 +1101,91 @@ adb devices<!doctype html>
             phoneChoices.appendChild(controls);
         }
 
+        // --- VR HUD / Panel + transient tips ---
+        function showVrPanel(html, options = []) {
+            if (!sceneEl) return;
+            // lazy-create hud
+            if (!window.vrHud) {
+                const group = document.createElement('a-entity');
+                group.setAttribute('id', 'vrHud');
+                // position relative to camera: we'll attach to camera parent so it follows view
+                const camParent = document.querySelector('[camera]').parentEl;
+                camParent.appendChild(group);
+                // background plane
+                const bg = document.createElement('a-plane');
+                bg.setAttribute('id', 'vrHudBg');
+                bg.setAttribute('width', '1.2'); bg.setAttribute('height', '0.6'); bg.setAttribute('color', '#0e1622'); bg.setAttribute('opacity', '0.95'); bg.setAttribute('position', '0 0 -1'); bg.setAttribute('material', 'shader:flat');
+                group.appendChild(bg);
+                // text
+                const text = document.createElement('a-text');
+                text.setAttribute('id', 'vrHudText');
+                text.setAttribute('value', '');
+                text.setAttribute('align', 'center');
+                text.setAttribute('color', '#fff');
+                text.setAttribute('wrap-count', '40');
+                text.setAttribute('position', '0 0.06 -0.99');
+                text.setAttribute('width', '1.1');
+                group.appendChild(text);
+                // buttons container (we'll position buttons below)
+                const btnContainer = document.createElement('a-entity');
+                btnContainer.setAttribute('id', 'vrHudBtns'); btnContainer.setAttribute('position', '0 -0.18 -0.99');
+                group.appendChild(btnContainer);
+                window.vrHud = group;
+            }
+            const hud = window.vrHud;
+            const text = hud.querySelector('#vrHudText');
+            text && text.setAttribute('value', stripHtml(html));
+            // clear existing buttons and create provided options as gaze-select planes
+            const btnContainer = hud.querySelector('#vrHudBtns');
+            btnContainer.innerHTML = '';
+            options.forEach((opt, idx) => {
+                const btn = document.createElement('a-plane');
+                btn.setAttribute('width', '0.4'); btn.setAttribute('height', '0.12'); btn.setAttribute('color', opt.good ? '#2f80ed' : '#bdc3c7');
+                btn.setAttribute('class', 'interactable');
+                const x = (idx - (options.length - 1) / 2) * 0.44;
+                btn.setAttribute('position', `${x} 0 0`);
+                btn.setAttribute('gaze-select', '');
+                const t = document.createElement('a-text'); t.setAttribute('value', opt.text); t.setAttribute('align', 'center'); t.setAttribute('color', '#fff'); t.setAttribute('position', '0 0 0.02'); t.setAttribute('width', '0.36'); btn.appendChild(t);
+                btn.addEventListener('gaze-confirm', () => { hideVrPanel(); opt.action && opt.action(); });
+                btn.addEventListener('click', () => { hideVrPanel(); opt.action && opt.action(); });
+                btnContainer.appendChild(btn);
+            });
+            hud.setAttribute('visible', 'true');
+        }
+
+        function hideVrPanel() {
+            if (window.vrHud) window.vrHud.setAttribute('visible', 'false');
+        }
+
+        function showVrTip(text, duration = 3500) {
+            if (!sceneEl) return;
+            if (!window.vrTip) {
+                const group = document.createElement('a-entity');
+                group.setAttribute('id', 'vrTip');
+                const camParent = document.querySelector('[camera]').parentEl;
+                camParent.appendChild(group);
+                const bg = document.createElement('a-plane'); bg.setAttribute('width', '0.6'); bg.setAttribute('height', '0.14'); bg.setAttribute('color', '#111'); bg.setAttribute('opacity', '0.9'); bg.setAttribute('position', '0 0.9 -1'); group.appendChild(bg);
+                const t = document.createElement('a-text'); t.setAttribute('id', 'vrTipText'); t.setAttribute('value', ''); t.setAttribute('color', '#fff'); t.setAttribute('align', 'center'); t.setAttribute('width', '0.58'); t.setAttribute('position', '0 0.9 -0.99'); group.appendChild(t);
+                window.vrTip = group;
+            }
+            const tip = window.vrTip; const textEl = tip.querySelector('#vrTipText'); textEl && textEl.setAttribute('value', text);
+            tip.setAttribute('visible', 'true');
+            if (tip._hideTimeout) clearTimeout(tip._hideTimeout);
+            tip._hideTimeout = setTimeout(() => { tip.setAttribute('visible', 'false'); }, duration);
+        }
+
+        // Create a floating, pulsing callout in the scene near an object (useful to highlight order)
+        // (floating callout helper removed to restore previous behaviour)
+
+        // Create a simple arrow pointer that points toward a target entity (by id)
+        // This is used to visually direct attention to the towel.
+        // (pointer helper removed to restore previous behaviour)
+
+        function stripHtml(html) {
+            // quick strip tags for a-text display
+            const tmp = document.createElement('div'); tmp.innerHTML = html; return tmp.textContent || tmp.innerText || '';
+        }
+
         function phoneStep2() {
             phoneScreen.textContent = "112 centrale: Zijn er gewonden?";
             phoneChoices.innerHTML = '';
@@ -910,6 +1216,118 @@ adb devices<!doctype html>
             };
             phoneChoices.appendChild(yes);
             phoneChoices.appendChild(no);
+        }
+
+        // --- VR phone: in-scene 3D keypad for headset users ---
+        // Simple implementation: a plane with buttons (a-planes) that fire gaze-confirm events.
+        function createVrPhone() {
+            if (window.vrPhone) return;
+            const scene = document.querySelector('a-scene');
+            const group = document.createElement('a-entity');
+            group.setAttribute('id', 'vrPhone');
+            group.setAttribute('position', '0 1.4 -1');
+            group.setAttribute('visible', 'false');
+
+            // background panel
+            const bg = document.createElement('a-plane');
+            bg.setAttribute('width', '0.6');
+            bg.setAttribute('height', '0.9');
+            bg.setAttribute('color', '#111');
+            bg.setAttribute('material', 'opacity:0.95');
+            bg.setAttribute('position', '0 0 0');
+            group.appendChild(bg);
+
+            // number display
+            const numText = document.createElement('a-text');
+            numText.setAttribute('id', 'vrPhoneNumberText');
+            numText.setAttribute('value', '');
+            numText.setAttribute('position', '0 0.34 0.01');
+            numText.setAttribute('align', 'center');
+            numText.setAttribute('color', '#fff');
+            numText.setAttribute('width', '1');
+            group.appendChild(numText);
+
+            // keypad layout
+            const digits = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
+            for (let i = 0; i < digits.length; i++) {
+                const d = digits[i];
+                const row = Math.floor(i / 3);
+                const col = i % 3;
+                const btn = document.createElement('a-plane');
+                btn.setAttribute('width', '0.16');
+                btn.setAttribute('height', '0.12');
+                btn.setAttribute('color', '#2c3e50');
+                btn.setAttribute('class', 'interactable vrPhoneBtn');
+                const x = -0.2 + col * 0.2;
+                const y = 0.12 - row * 0.14;
+                btn.setAttribute('position', `${x} ${y} 0.01`);
+                btn.setAttribute('class', 'vrPhoneBtn');
+                btn.setAttribute('gaze-select', '');
+                // text label
+                const t = document.createElement('a-text');
+                t.setAttribute('value', d);
+                t.setAttribute('align', 'center');
+                t.setAttribute('color', '#fff');
+                t.setAttribute('position', '0 0 0.02');
+                t.setAttribute('width', '0.6');
+                btn.appendChild(t);
+                // register behaviour
+                btn.addEventListener('gaze-confirm', () => {
+                    window.vrPhoneNumber = (window.vrPhoneNumber || '') + d;
+                    const display = group.querySelector('#vrPhoneNumberText');
+                    display && display.setAttribute('value', window.vrPhoneNumber.slice(0, 6));
+                });
+                group.appendChild(btn);
+            }
+
+            // controls: clear, call, close
+            const clearBtn = document.createElement('a-plane');
+            clearBtn.setAttribute('width', '0.18'); clearBtn.setAttribute('height', '0.08'); clearBtn.setAttribute('color', '#c0392b'); clearBtn.setAttribute('class', 'interactable');
+            clearBtn.setAttribute('position', '-0.14 -0.28 0.01'); clearBtn.setAttribute('gaze-select', '');
+            const clearText = document.createElement('a-text'); clearText.setAttribute('value', 'Clear'); clearText.setAttribute('color', '#fff'); clearText.setAttribute('align', 'center'); clearText.setAttribute('position', '0 0 0.02'); clearText.setAttribute('width', '0.6'); clearBtn.appendChild(clearText);
+            clearBtn.addEventListener('gaze-confirm', () => { window.vrPhoneNumber = ''; const d = group.querySelector('#vrPhoneNumberText'); d && d.setAttribute('value', ''); });
+            group.appendChild(clearBtn);
+
+            const callBtn = document.createElement('a-plane');
+            callBtn.setAttribute('width', '0.18'); callBtn.setAttribute('height', '0.08'); callBtn.setAttribute('color', '#27ae60'); callBtn.setAttribute('class', 'interactable');
+            callBtn.setAttribute('position', '0  -0.28 0.01'); callBtn.setAttribute('gaze-select', '');
+            const callText = document.createElement('a-text'); callText.setAttribute('value', 'Bellen'); callText.setAttribute('color', '#fff'); callText.setAttribute('align', 'center'); callText.setAttribute('position', '0 0 0.02'); callText.setAttribute('width', '0.6'); callBtn.appendChild(callText);
+            callBtn.addEventListener('gaze-confirm', () => {
+                const num = window.vrPhoneNumber || '';
+                if (num === '112') {
+                    // success
+                    // hide VR phone and continue as DOM version would
+                    group.setAttribute('visible', false);
+                    startAmbulanceRun();
+                    setTimeout(() => nextStep(), 50);
+                } else {
+                    const d = group.querySelector('#vrPhoneNumberText');
+                    d && d.setAttribute('value', 'Ongeldig');
+                    setTimeout(() => { d && d.setAttribute('value', ''); window.vrPhoneNumber = ''; }, 900);
+                }
+            });
+            group.appendChild(callBtn);
+
+            const closeBtn = document.createElement('a-plane');
+            closeBtn.setAttribute('width', '0.18'); closeBtn.setAttribute('height', '0.08'); closeBtn.setAttribute('color', '#3a3f4a'); closeBtn.setAttribute('class', 'interactable');
+            closeBtn.setAttribute('position', '0.14 -0.28 0.01'); closeBtn.setAttribute('gaze-select', '');
+            const closeText = document.createElement('a-text'); closeText.setAttribute('value', 'Sluiten'); closeText.setAttribute('color', '#fff'); closeText.setAttribute('align', 'center'); closeText.setAttribute('position', '0 0 0.02'); closeText.setAttribute('width', '0.6'); closeBtn.appendChild(closeText);
+            closeBtn.addEventListener('gaze-confirm', () => { group.setAttribute('visible', false); });
+            group.appendChild(closeBtn);
+
+            scene.appendChild(group);
+            window.vrPhone = group;
+        }
+
+        // VR mode toggles and enterVR button
+        if (sceneEl) {
+            sceneEl.addEventListener('enter-vr', () => { isInVR = true; });
+            sceneEl.addEventListener('exit-vr', () => { isInVR = false; if (window.vrPhone) window.vrPhone.setAttribute('visible', false); });
+        }
+        if (enterVRBtn) {
+            enterVRBtn.addEventListener('click', () => {
+                try { sceneEl && sceneEl.enterVR && sceneEl.enterVR(); } catch (e) { console.warn('Cannot enter VR', e); }
+            });
         }
 
         // Start ambulance 'en route' — nadert, maar arriveert pas volledig na pleister
@@ -1001,7 +1419,9 @@ adb devices<!doctype html>
             ehbo.setAttribute('visible', false); ehbo.setAttribute('position', '0.8 0 1.2'); ehbo.removeAttribute('animation');
             ehboPicked = false; woundDisinfected = false; plasterApplied = false;
             ambulanceEnRoute = false; ambulanceArriving = false;
+            woundStopped = false;
             wound.setAttribute('visible', true); wound.setAttribute('color', '#c0392b'); wound.setAttribute('position', '0 0.95 0.22');
+            wound.setAttribute('scale', '1 1 1');
             panel.style.display = 'none'; phone.style.display = 'none';
             // reset gaze targets and flags -> zichtbaar in begin
             lookedLeft = false; lookedRight = false;
@@ -1012,9 +1432,12 @@ adb devices<!doctype html>
             const scene = document.querySelector('a-scene');
             spray.setAttribute('position', '0.4 0.2 1.4'); spray.setAttribute('rotation', '0 0 0'); spray.setAttribute('scale', '1 1 1'); scene.appendChild(spray);
             plaster.setAttribute('position', '1.2 0.04 1.4'); plaster.setAttribute('rotation', '0 0 0'); plaster.setAttribute('scale', '1 1 1'); scene.appendChild(plaster);
+            towel.setAttribute('position', '0.8 0.14 1.2'); towel.setAttribute('rotation', '0 0 0'); towel.setAttribute('scale', '1 1 1'); scene.appendChild(towel);
             spray.setAttribute('visible', false); plaster.setAttribute('visible', false);
             sprayLabel.setAttribute('visible', false); plasterLabel.setAttribute('visible', false);
+            towel.setAttribute('visible', false); towelLabel.setAttribute('visible', false);
             spray.setAttribute('glow', { active: false }); plaster.setAttribute('glow', { active: false });
+            towel.setAttribute('glow', { active: false });
             heldItem = null;
             // reset medics
             medic1.setAttribute('visible', false); medic2.setAttribute('visible', false);
@@ -1047,6 +1470,11 @@ adb devices<!doctype html>
         // initialisatie: voeg componenten toe aan gaze targets (items worden pas interactief in stap 4)
         lookLeft.setAttribute('gaze-trigger', { id: 'left' });
         lookRight.setAttribute('gaze-trigger', { id: 'right' });
+        // add gaze-select to ensure 3s confirmation works on these markers too
+        lookLeft.setAttribute('gaze-select', '');
+        lookRight.setAttribute('gaze-select', '');
+        // allow applying held items by looking at the person for 3s
+        person.setAttribute('gaze-select', '');
         // spray/plaster blijven onzichtbaar en niet-pickable tot stap 4
         // begin
         reset();
