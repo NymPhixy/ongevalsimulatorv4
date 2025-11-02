@@ -2,6 +2,11 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   root: "public",
+  build: {
+    // Output production build to repo-root dist/ so Netlify can find it
+    outDir: "../dist",
+    emptyOutDir: true,
+  },
   server: {
     // open in browser on start (keeps current behavior) and expose on LAN so
     // a VR-bril op hetzelfde netwerk kan verbinden (via http://<PC-IP>:5173).
