@@ -174,8 +174,8 @@ adb devices
 
     <a-scene collision-check background="color: #aed9ff">
         <!-- Camera rig with Quest 1 movement and controller support -->
-        <a-entity id="cameraRig" position="0 0 6" movement-controls="fly: false; speed: 0.15">
-            <a-entity camera look-controls position="0 1.6 0">
+        <a-entity id="cameraRig" position="0 0 6">
+            <a-entity camera position="0 1.6 0">
                 <!-- Cursor uses a 3s fuse to avoid accidental selections in VR -->
                 <!-- Added id so we can attach a visual progress ring for gaze feedback -->
                 <a-entity id="sceneCursor" cursor="fuse: true; fuseTimeout: 3000" position="0 0 -1"
@@ -184,17 +184,24 @@ adb devices
                 </a-entity>
             </a-entity>
 
-            <!-- Quest 1 Controllers: laser pointers + trigger selection -->
-            <!-- Left controller: laser pointer for pointing and selecting -->
-            <a-entity id="leftController" oculus-touch-controls="hand: left" laser-controls="hand: left"
-                raycaster="objects: .interactable, .gazeTarget, .vrPhoneBtn; far: 10"
-                line="color: #2f80ed; opacity: 0.75" controller-select>
+            <!-- Quest 1 Controllers: laser pointers + trigger selection + thumbstick movement -->
+            <!-- Left controller: laser pointer for pointing and selecting, thumbstick for movement -->
+            <a-entity id="leftController" 
+                      oculus-touch-controls="hand: left; model: false" 
+                      laser-controls="hand: left"
+                      raycaster="objects: .interactable, .gazeTarget, .vrPhoneBtn; far: 10"
+                      line="color: #2f80ed; opacity: 0.75" 
+                      controller-select
+                      thumbstick-movement="speed: 0.1; acceleration: 30">
             </a-entity>
 
             <!-- Right controller: laser pointer for pointing and selecting -->
-            <a-entity id="rightController" oculus-touch-controls="hand: right" laser-controls="hand: right"
-                raycaster="objects: .interactable, .gazeTarget, .vrPhoneBtn; far: 10"
-                line="color: #2f80ed; opacity: 0.75" controller-select>
+            <a-entity id="rightController" 
+                      oculus-touch-controls="hand: right; model: false" 
+                      laser-controls="hand: right"
+                      raycaster="objects: .interactable, .gazeTarget, .vrPhoneBtn; far: 10"
+                      line="color: #2f80ed; opacity: 0.75" 
+                      controller-select>
             </a-entity>
         </a-entity>
 
@@ -837,9 +844,7 @@ adb devices
         AFRAME.registerComponent('controller-select', {
             init: function () {
                 const el = this.el;
-                // Listen for trigger press on this controller
                 el.addEventListener('triggerdown', () => {
-                    // Get the raycaster component to check what we're pointing at
                     const raycaster = el.components.raycaster;
                     if (!raycaster) return;
 
@@ -847,15 +852,57 @@ adb devices
                     if (intersections && intersections.length > 0) {
                         const target = intersections[0].object.el;
                         if (target) {
-                            // Emit click and gaze-confirm on the targeted entity
-                            // This makes controller trigger work the same as gaze/click
                             target.emit('click');
                             target.emit('gaze-confirm');
-                            // Play confirmation tone
                             playConfirmTone();
                         }
                     }
                 });
+            }
+        });
+
+        AFRAME.registerComponent('thumbstick-movement', {
+            schema: {
+                speed: { type: 'number', default: 0.1 },
+                acceleration: { type: 'number', default: 30 }
+            },
+            init: function () {
+                this.velocity = new THREE.Vector3();
+            },
+            tick: function (time, delta) {
+                const data = this.data;
+                const el = this.el;
+                const rig = document.getElementById('cameraRig');
+                if (!rig) return;
+
+                // Get thumbstick axes (left thumbstick)
+                const gamepad = el.components['oculus-touch-controls'] && 
+                               el.components['oculus-touch-controls'].controller;
+                
+                if (!gamepad || !gamepad.axes) return;
+
+                const x = gamepad.axes[0]; // left/right
+                const z = gamepad.axes[1]; // forward/backward
+
+                // Only move if thumbstick is pushed enough
+                if (Math.abs(x) > 0.1 || Math.abs(z) > 0.1) {
+                    const camera = document.querySelector('[camera]');
+                    const rotation = camera.object3D.rotation;
+                    
+                    // Calculate movement direction based on camera rotation
+                    const direction = new THREE.Vector3(x, 0, z);
+                    direction.applyEuler(new THREE.Euler(0, rotation.y, 0));
+                    direction.normalize();
+                    
+                    // Apply movement to rig
+                    const currentPos = rig.getAttribute('position');
+                    const deltaSeconds = delta / 1000;
+                    rig.setAttribute('position', {
+                        x: currentPos.x + direction.x * data.speed * deltaSeconds * data.acceleration,
+                        y: currentPos.y,
+                        z: currentPos.z + direction.z * data.speed * deltaSeconds * data.acceleration
+                    });
+                }
             }
         });
 
