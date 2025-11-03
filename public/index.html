@@ -673,8 +673,9 @@ adb devices
                             const scene = document.querySelector('a-scene');
                             // remove from current parent (if possible) - use THREE.Object3D.remove(child)
                             if (el.object3D && el.object3D.parent) el.object3D.parent.remove(el.object3D);
-                            const cam = document.querySelector('[camera]').parentEl;
-                            cam.appendChild(el);
+                            const cameraEl = document.querySelector('[camera]');
+                            const cam = cameraEl && cameraEl.parentEl ? cameraEl.parentEl : scene;
+                            if (cam) cam.appendChild(el);
                             el.setAttribute('position', '0 -0.12 -0.6');
                             el.setAttribute('rotation', '0 0 0');
                             el.setAttribute('scale', '0.9 0.9 0.9');
@@ -993,6 +994,7 @@ adb devices
                                 sprayLabel.setAttribute('visible', true);
                                 plasterLabel.setAttribute('visible', true);
                                 towelLabel.setAttribute('visible', true);
+                                console.log('EHBO items visible:', { spray: spray.getAttribute('visible'), plaster: plaster.getAttribute('visible'), towel: towel.getAttribute('visible') });
                                 // maak items nu pas interactief en zet glow-standaard
                                 spray.setAttribute('pickable', '');
                                 plaster.setAttribute('pickable', '');
