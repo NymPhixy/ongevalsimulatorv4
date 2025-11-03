@@ -522,31 +522,37 @@ adb devices
             }
         });
 
-        // EHBO items click component
+        // EHBO items click component - VEEL SIMPELER EN BETROUWBAARDER
         AFRAME.registerComponent('ehbo-item', {
             init: function () {
                 const el = this.el;
                 const itemId = el.getAttribute('id');
                 
-                el.addEventListener('click', () => {
-                    console.log('EHBO item clicked:', itemId);
+                console.log('Registering ehbo-item for:', itemId);
+                
+                // Zorg dat clicks op dit element altijd werken, ongeacht visibility
+                el.addEventListener('click', (evt) => {
+                    console.log('🔴 CLICKED:', itemId, 'ehboStep:', ehboStep);
+                    evt.stopPropagation();
                     
                     if (itemId === 'spray') {
+                        console.log('SPRAY LOGIC - ehboStep:', ehboStep);
                         if (ehboStep < 1) {
-                            console.log('Spray clicked!');
+                            console.log('>>> Spray gebruiken!');
                             ehboStep = 1;
                             wound.setAttribute('color', '#e67e22');
                             showFeedback('✅ Je hebt de wond met spray gedesinfecteerd!', true, () => {
-                                console.log('Spray feedback shown');
+                                console.log('Spray feedback klaar');
                             });
                         } else {
                             showFeedback('De wond is al gedesinfecteerd.', true, () => { });
                         }
                     } else if (itemId === 'plaster') {
+                        console.log('PLASTER LOGIC - ehboStep:', ehboStep);
                         if (ehboStep < 1) {
                             showFeedback('❌ Eerst desinfecteren met spray!', false, () => { });
                         } else if (ehboStep === 1) {
-                            console.log('Plaster clicked!');
+                            console.log('>>> Pleister gebruiken!');
                             ehboStep = 2;
                             wound.setAttribute('visible', false);
                             showFeedback('✅ Pleister aangebracht! Ambulance is onderweg.', true, () => {
@@ -685,15 +691,23 @@ adb devices
                     [
                         {
                             text: 'Ga naar de EHBO spullen', good: true, action: () => {
+                                console.log('🟢 STAP 4: EHBO items zichtbaar maken...');
                                 panel.style.display = 'none';
+                                
                                 // Zet EHBO items zichtbaar
-                                ehbo.setAttribute('visible', true);
+                                console.log('Setting spray visible...');
                                 spray.setAttribute('visible', true);
+                                console.log('Setting plaster visible...');
                                 plaster.setAttribute('visible', true);
+                                console.log('Setting ehbo visible...');
+                                ehbo.setAttribute('visible', true);
                                 sprayLabel.setAttribute('visible', true);
                                 plasterLabel.setAttribute('visible', true);
 
-                                // Items have ehbo-item component already - they are clickable!
+                                console.log('✅ EHBO items are now VISIBLE and CLICKABLE');
+                                console.log('spray:', spray);
+                                console.log('plaster:', plaster);
+                                console.log('ehboStep:', ehboStep);
                                 
                                 // Pulse de wond als reminder
                                 wound.setAttribute('animation__pulse', 'property: scale; dir: alternate; dur: 700; to: 1.35 1.35 1.35; loop: true');
