@@ -176,9 +176,9 @@ adb devices
         <!-- Camera rig with Quest 1 movement and controller support -->
         <a-entity id="cameraRig" position="0 0 6">
             <a-entity camera look-controls position="0 1.6 0">
-                <!-- Cursor uses a 3s fuse to avoid accidental selections in VR -->
-                <!-- Added id so we can attach a visual progress ring for gaze feedback -->
-                <a-entity id="sceneCursor" cursor="fuse: true; fuseTimeout: 3000" position="0 0 -1"
+                <!-- Cursor uses raycast for interactions (zonder automatische gaze) -->
+                <!-- Cursor is nu puur visueel (gaze-select is verwijderd) -->
+                <a-entity id="sceneCursor" cursor="fuse: false; fuseTimeout: 3000" position="0 0 -1"
                     geometry="primitive: ring; radiusInner: 0.01; radiusOuter: 0.02"
                     material="color: black; shader: flat">
                 </a-entity>
@@ -187,14 +187,13 @@ adb devices
             <!-- Quest 1 Controllers: laser pointers + trigger selection + thumbstick movement -->
             <!-- Left controller: laser pointer for pointing and selecting, thumbstick for movement -->
             <a-entity id="leftController" oculus-touch-controls="hand: left; model: false" laser-controls="hand: left"
-                raycaster="objects: .interactable, .gazeTarget, .vrPhoneBtn; far: 10"
-                line="color: #2f80ed; opacity: 0.75" controller-select
-                thumbstick-movement="speed: 0.1; acceleration: 30">
+                raycaster="objects: .interactable, .vrPhoneBtn; far: 10" line="color: #2f80ed; opacity: 0.75"
+                controller-select thumbstick-movement="speed: 0.1; acceleration: 30">
             </a-entity>
 
             <!-- Right controller: laser pointer for pointing and selecting -->
             <a-entity id="rightController" oculus-touch-controls="hand: right; model: false"
-                laser-controls="hand: right" raycaster="objects: .interactable, .gazeTarget, .vrPhoneBtn; far: 10"
+                laser-controls="hand: right" raycaster="objects: .interactable, .vrPhoneBtn; far: 10"
                 line="color: #2f80ed; opacity: 0.75" controller-select>
             </a-entity>
         </a-entity>
@@ -365,9 +364,10 @@ adb devices
         </a-entity>
 
         <!-- gaze targets (balletjes) - iets verder voor de spawn zodat gebruiker ze direct ziet -->
-        <a-sphere id="lookLeft" color="#ffd166" radius="0.22" position="-1.2 1.6 6.6" class="gazeTarget"
+        <!-- Balletjes kunnen zowel via gaze als via controller raycast geactiveerd worden -->
+        <a-sphere id="lookLeft" color="#ffd166" radius="0.22" position="-1.2 1.6 6.6" class="gazeTarget interactable"
             visible="true"></a-sphere>
-        <a-sphere id="lookRight" color="#ffd166" radius="0.22" position="1.2 1.6 6.6" class="gazeTarget"
+        <a-sphere id="lookRight" color="#ffd166" radius="0.22" position="1.2 1.6 6.6" class="gazeTarget interactable"
             visible="true"></a-sphere>
         <a-text id="lookHint" value="Kijk eerst links en rechts naar de balletjes om je omgeving te checken"
             align="center" color="#fff" position="0 2 6.6" scale="0.95 0.95 0.95" visible="true"></a-text>
@@ -564,8 +564,8 @@ adb devices
             car.setAttribute('animation__drive', `property: position; from: ${fromStr}; to: 0 0 -0.6; dur: 3800; easing: linear`);
         }
 
-        // Komponenten voor interactiviteit
-        // gaze-trigger reageert op click en op onze custom 'gaze-confirm' (3s fuse)
+        // Gaze-trigger reageert op click en op onze custom 'gaze-confirm' (3s fuse)
+        // Werkt nu ALLEEN op balletjes (lookLeft, lookRight)
         AFRAME.registerComponent('gaze-trigger', {
             schema: { id: { type: 'string' } },
             init: function () {
@@ -588,6 +588,7 @@ adb devices
                         nextStep();
                     }
                 };
+                // Beide gaze en click ondersteunen
                 el.addEventListener('click', handle);
                 el.addEventListener('gaze-confirm', handle);
             }
@@ -696,8 +697,8 @@ adb devices
             }
         });
 
-        // klik op slachtoffer om gebruikt item toe te passen (negeer klikken vóór EHBO-stap / geen 'niets vast' melding)
-        // Handler voor gebruik van vastgehouden items op het slachtoffer
+        // Handler voor klikken op slachtoffer (controller trigger - GEEN GAZE)
+        // Gebruik vastgehouden items met controller trigger en klikken
         function applyHeldItemToPerson() {
             if (step < 4) return; // stil genegeerd zolang EHBO nog niet beschikbaar is
             if (!heldItem) return; // geen feedback tonen wanneer niets vast
@@ -838,6 +839,8 @@ adb devices
         AFRAME.registerComponent('controller-select', {
             init: function () {
                 const el = this.el;
+
+                // Handle trigger down (primary button on Quest controllers)
                 el.addEventListener('triggerdown', () => {
                     const raycaster = el.components.raycaster;
                     if (!raycaster) return;
@@ -852,6 +855,20 @@ adb devices
                         }
                     }
                 });
+
+                // Also handle button up on secondary buttons (for menu/interactions)
+                el.addEventListener('abutton', () => {
+                    const raycaster = el.components.raycaster;
+                    if (!raycaster) return;
+                    const intersections = raycaster.intersections;
+                    if (intersections && intersections.length > 0) {
+                        const target = intersections[0].object.el;
+                        if (target) {
+                            target.emit('click');
+                            playConfirmTone();
+                        }
+                    }
+                });
             }
         });
 
@@ -862,6 +879,7 @@ adb devices
             },
             init: function () {
                 this.velocity = new THREE.Vector3();
+                this.movementActive = false;
             },
             tick: function (time, delta) {
                 const data = this.data;
@@ -869,33 +887,46 @@ adb devices
                 const rig = document.getElementById('cameraRig');
                 if (!rig) return;
 
-                // Get thumbstick axes (left thumbstick)
+                // Get thumbstick axes (left thumbstick on Quest controllers)
                 const gamepad = el.components['oculus-touch-controls'] &&
                     el.components['oculus-touch-controls'].controller;
 
                 if (!gamepad || !gamepad.axes) return;
 
-                const x = gamepad.axes[0]; // left/right
-                const z = gamepad.axes[1]; // forward/backward
+                const x = gamepad.axes[0]; // left/right (-1 to 1)
+                const z = gamepad.axes[1]; // forward/backward (-1 to 1, negative = forward)
 
-                // Only move if thumbstick is pushed enough
-                if (Math.abs(x) > 0.1 || Math.abs(z) > 0.1) {
+                // Deadzone to prevent drift
+                const deadzone = 0.15;
+                const adjustedX = Math.abs(x) > deadzone ? x : 0;
+                const adjustedZ = Math.abs(z) > deadzone ? z : 0;
+
+                // Move if thumbstick is pushed
+                if (Math.abs(adjustedX) > 0.01 || Math.abs(adjustedZ) > 0.01) {
                     const camera = document.querySelector('[camera]');
+                    if (!camera) return;
+
                     const rotation = camera.object3D.rotation;
 
-                    // Calculate movement direction based on camera rotation
-                    const direction = new THREE.Vector3(x, 0, z);
+                    // Calculate movement direction based on camera direction (not controller direction)
+                    const direction = new THREE.Vector3(adjustedX, 0, adjustedZ);
                     direction.applyEuler(new THREE.Euler(0, rotation.y, 0));
                     direction.normalize();
 
-                    // Apply movement to rig
+                    // Apply smooth movement to rig (camera-relative)
                     const currentPos = rig.getAttribute('position');
                     const deltaSeconds = delta / 1000;
+                    const moveSpeed = data.speed * data.acceleration * deltaSeconds;
+
                     rig.setAttribute('position', {
-                        x: currentPos.x + direction.x * data.speed * deltaSeconds * data.acceleration,
+                        x: currentPos.x + direction.x * moveSpeed,
                         y: currentPos.y,
-                        z: currentPos.z + direction.z * data.speed * deltaSeconds * data.acceleration
+                        z: currentPos.z + direction.z * moveSpeed
                     });
+
+                    this.movementActive = true;
+                } else {
+                    this.movementActive = false;
                 }
             }
         });
@@ -942,7 +973,7 @@ adb devices
                                 lookRight.setAttribute('visible', true);
                                 lookLeft.setAttribute('gaze-trigger', { id: 'left' });
                                 lookRight.setAttribute('gaze-trigger', { id: 'right' });
-                                if (isInVR) showVrTip('Tip: Kijk 3 seconden naar een object om te selecteren. Lees wat er op het scherm staat.');
+                                if (isInVR) showVrTip('Tip: Kijk naar de gele balletjes (3 sec) of gebruik controller trigger.\nLinker thumbstick = lopen!');
                             }
                         }
                     ]);
@@ -997,7 +1028,7 @@ adb devices
                                 spray.setAttribute('pickable', '');
                                 plaster.setAttribute('pickable', '');
                                 towel.setAttribute('pickable', '');
-                                // enable gaze selection for VR users
+                                // enable gaze selection for VR users (ALLEEN voor EHBO items)
                                 spray.setAttribute('gaze-select', '');
                                 plaster.setAttribute('gaze-select', '');
                                 towel.setAttribute('gaze-select', '');
@@ -1225,19 +1256,20 @@ adb devices
             btnContainer.innerHTML = '';
             options.forEach((opt, idx) => {
                 const btn = document.createElement('a-plane');
-                btn.setAttribute('width', '0.45');
-                btn.setAttribute('height', '0.13');
+                btn.setAttribute('width', '0.65');
+                btn.setAttribute('height', '0.15');
                 btn.setAttribute('color', opt.good ? '#2f80ed' : '#bdc3c7');
                 btn.setAttribute('class', 'interactable');
-                const x = (idx - (options.length - 1) / 2) * 0.5;
+                const x = (idx - (options.length - 1) / 2) * 0.7;
                 btn.setAttribute('position', `${x} 0 0`);
                 btn.setAttribute('gaze-select', '');
                 const t = document.createElement('a-text');
                 t.setAttribute('value', opt.text);
                 t.setAttribute('align', 'center');
-                t.setAttribute('color', '#fff');
+                t.setAttribute('color', '#000');
                 t.setAttribute('position', '0 0 0.02');
-                t.setAttribute('width', '0.4');
+                t.setAttribute('width', '0.6');
+                t.setAttribute('scale', '0.8 0.8 0.8');
                 btn.appendChild(t);
                 btn.addEventListener('gaze-confirm', () => { hideVrPanel(); opt.action && opt.action(); });
                 btn.addEventListener('click', () => { hideVrPanel(); opt.action && opt.action(); });
@@ -1622,8 +1654,6 @@ adb devices
         // add gaze-select to ensure 3s confirmation works on these markers too
         lookLeft.setAttribute('gaze-select', '');
         lookRight.setAttribute('gaze-select', '');
-        // allow applying held items by looking at the person for 3s
-        person.setAttribute('gaze-select', '');
         // spray/plaster blijven onzichtbaar en niet-pickable tot stap 4
         // begin
         reset();
