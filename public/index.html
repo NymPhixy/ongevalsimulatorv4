@@ -226,9 +226,10 @@ adb devices
             <a-entity id="leftHand" oculus-touch-controls="hand: left" thumbstick-locomotion>
             </a-entity>
 
-            <!-- Rechter hand controller: raycaster voor interacties -->
+            <!-- Rechter hand controller: raycaster + cursor voor interacties -->
             <a-entity id="rightHand" oculus-touch-controls="hand: right" laser-controls="hand: right"
                 raycaster="objects: .interactable, .gazeTarget, .phone-btn-vr; far: 10; lineColor: cyan; lineOpacity: 0.5"
+                cursor="rayOrigin: entity"
                 line="color: cyan; opacity: 0.5">
             </a-entity>
         </a-entity>
@@ -588,7 +589,7 @@ adb devices
         // Creëer 3D panel voor VR
         function createVRPanel(html, options = []) {
             const scene = document.querySelector('a-scene');
-            const camera = document.getElementById('head');
+            const head = document.getElementById('head');
 
             // Verwijder oude VR panel als die bestaat
             const oldPanel = document.getElementById('vrPanel');
@@ -597,13 +598,10 @@ adb devices
             const vrPanel = document.createElement('a-entity');
             vrPanel.setAttribute('id', 'vrPanel');
             
-            // Simpelere aanpak: plaats het panel op een vaste positie voor de speler
-            // Altijd op ooghoogte en voor de camera rig positie
-            const cameraRig = document.getElementById('cameraRig');
-            const rigPos = cameraRig ? cameraRig.getAttribute('position') : { x: 0, y: 0, z: 6 };
-            
-            // Panel positie: voor de speler op ooghoogte
-            vrPanel.setAttribute('position', `0 1.6 ${rigPos.z - 2.5}`);
+            // Hang het panel aan de camera (head) zodat het altijd in beeld is
+            // en 1.8 meter voor de gebruiker zweeft op ooghoogte
+            vrPanel.setAttribute('position', '0 0 -1.8');
+            vrPanel.setAttribute('rotation', '0 0 0');
 
             // Background plane
             const bg = document.createElement('a-plane');
@@ -677,7 +675,13 @@ adb devices
             });
 
             console.log('VR Panel created and appending to scene');
-            scene.appendChild(vrPanel);
+            // Voeg toe als child van de camera zodat het meebeweegt
+            if (head) {
+                head.appendChild(vrPanel);
+            } else {
+                // fallback: voeg toe aan de scene (minder ideaal)
+                scene.appendChild(vrPanel);
+            }
         }
 
         function showFeedback(text, isGood, next) {
