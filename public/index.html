@@ -1,5 +1,6 @@
 adb version
-adb devices<!doctype html>
+adb devices
+<!doctype html>
 <html lang="nl">
 
 <head>
@@ -510,6 +511,12 @@ adb devices<!doctype html>
                     this.el.removeAttribute('animation__pulse');
                     this.el.removeAttribute('animation__color');
                     this.el.setAttribute('scale', '1 1 1');
+                    // Restore original color
+                    if (this.el.getAttribute('id') === 'spray') {
+                        this.el.setAttribute('color', '#3498db');
+                    } else if (this.el.getAttribute('id') === 'plaster') {
+                        this.el.setAttribute('color', '#f7dc6f');
+                    }
                 }
             }
         });
@@ -520,24 +527,36 @@ adb devices<!doctype html>
                 const el = this.el;
                 function tryPickup() {
                     // only allow pickup when items zijn usable (EHBO stage)
-                    if (step >= 4 && !heldItem && el.getAttribute('visible') === true) {
-                        heldItem = el.getAttribute('id');
+                    if (step >= 4 && !heldItem && el.getAttribute('visible') === 'true') {
+                        const itemId = el.getAttribute('id');
+                        heldItem = itemId; // Store BEFORE making any changes
+
                         // attach to camera so user 'holds' it
                         try {
-                            // reparent to camera (camera is inside cameraRig)
                             const scene = document.querySelector('a-scene');
-                            // remove from current parent (if possible)
-                            if (el.object3D && el.object3D.parent) el.object3D.parent.removeChild(el.object3D);
+                            // Remove from current parent
+                            if (el.object3D && el.object3D.parent) {
+                                el.object3D.parent.removeChild(el.object3D);
+                            }
+
+                            // Get the camera and attach the item
                             const cam = document.querySelector('[camera]').parentEl;
                             cam.appendChild(el);
+
+                            // Position the item in the user's hand
                             el.setAttribute('position', '0 -0.12 -0.6');
                             el.setAttribute('rotation', '0 0 0');
                             el.setAttribute('scale', '0.9 0.9 0.9');
-                            showFeedback('Je hebt de ' + (heldItem === 'spray' ? 'spraybus' : 'pleister') + ' gepakt. Klik op het slachtoffer om het te gebruiken.', true, () => { });
+
                             // disable glow while held
                             el.components['glow'] && el.setAttribute('glow', { active: false });
+
+                            // Show feedback AFTER setting heldItem
+                            const itemName = (itemId === 'spray' ? 'spraybus' : 'pleister');
+                            showFeedback('Je hebt de ' + itemName + ' gepakt. Klik op het slachtoffer om het te gebruiken.', true, () => { });
                         } catch (e) {
                             console.error('Cannot pick up element', e);
+                            heldItem = null; // Reset if pickup fails
                         }
                     }
                 }
@@ -552,9 +571,14 @@ adb devices<!doctype html>
         // klik op slachtoffer om gebruikt item toe te passen (negeer klikken vóór EHBO-stap / geen 'niets vast' melding)
         person.addEventListener('click', () => {
             if (step < 4) return; // stil genegeerd zolang EHBO nog niet beschikbaar is
+
+            console.log('Person clicked. heldItem:', heldItem, 'woundDisinfected:', woundDisinfected, 'plasterApplied:', plasterApplied);
+
             if (!heldItem) return; // geen feedback tonen wanneer niets vast
+
             if (heldItem === 'spray') {
                 if (!woundDisinfected) {
+                    console.log('Applying spray...');
                     wound.setAttribute('color', '#e67e22');
                     woundDisinfected = true;
                     // drop the spray back to spawn
@@ -569,10 +593,12 @@ adb devices<!doctype html>
                 }
             } else if (heldItem === 'plaster') {
                 if (!woundDisinfected) {
+                    console.log('Must disinfect first!');
                     showFeedback('❌ Eerst desinfecteren! Gebruik eerst de spray.', false);
                     return;
                 }
                 if (!plasterApplied) {
+                    console.log('Applying plaster...');
                     wound.setAttribute('visible', false);
                     plasterApplied = true;
                     dropItem('plaster', { x: 1.2, y: 0.04, z: 1.4 });
@@ -601,11 +627,20 @@ adb devices<!doctype html>
             const item = document.getElementById(id);
             // ensure item exists and reparent to scene
             const scene = document.querySelector('a-scene');
+
+            // Verwijder het item van de camera en voeg het terug toe aan de scene
+            if (item.object3D && item.object3D.parent) {
+                item.object3D.parent.removeChild(item.object3D);
+            }
+
+            scene.appendChild(item);
             item.setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
             item.setAttribute('rotation', '0 0 0');
             item.setAttribute('scale', '1 1 1');
-            scene.appendChild(item);
-            // allow pickup again
+
+            // Re-enable pickable component so user can pick it up again if needed
+            item.setAttribute('pickable', '');
+            // allow pick up again
             item.components['glow'] && item.setAttribute('glow', { active: false });
         }
 
