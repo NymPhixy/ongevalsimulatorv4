@@ -1698,11 +1698,11 @@ adb devices
             const vrPhone = document.getElementById('vrPhone');
             if (vrPhone && vrPhone.parentNode) vrPhone.parentNode.removeChild(vrPhone);
 
-            // reset gaze targets and flags -> zichtbaar in begin
+            // reset gaze targets and flags -> VERBORGEN tot stap 1
             lookedLeft = false; lookedRight = false;
-            lookLeft.setAttribute('visible', true); lookLeft.setAttribute('color', '#ffd166'); lookLeft.setAttribute('scale', '1 1 1'); lookLeft.setAttribute('position', '-1.2 1.6 5.6');
-            lookRight.setAttribute('visible', true); lookRight.setAttribute('color', '#ffd166'); lookRight.setAttribute('scale', '1 1 1'); lookRight.setAttribute('position', '1.2 1.6 5.6');
-            document.getElementById('lookHint').setAttribute('visible', true); document.getElementById('lookHint').setAttribute('position', '0 2 5.6');
+            lookLeft.setAttribute('visible', false); lookLeft.setAttribute('color', '#ffd166'); lookLeft.setAttribute('scale', '1 1 1'); lookLeft.setAttribute('position', '-1.2 1.6 5.6');
+            lookRight.setAttribute('visible', false); lookRight.setAttribute('color', '#ffd166'); lookRight.setAttribute('scale', '1 1 1'); lookRight.setAttribute('position', '1.2 1.6 5.6');
+            document.getElementById('lookHint').setAttribute('visible', false); document.getElementById('lookHint').setAttribute('position', '0 2 5.6');
             // reset EHBO items positions and parent (naast ehbo)
             const scene = document.querySelector('a-scene');
             towel.setAttribute('position', '-0.2 0.04 1.4'); towel.setAttribute('rotation', '0 0 0'); towel.setAttribute('scale', '1 1 1'); scene.appendChild(towel);
