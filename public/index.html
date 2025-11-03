@@ -229,7 +229,7 @@ adb devices
             <!-- Rechter hand controller: raycaster + cursor voor interacties -->
             <a-entity id="rightHand" oculus-touch-controls="hand: right" laser-controls="hand: right"
                 raycaster="objects: .interactable, .gazeTarget, .phone-btn-vr; far: 10; lineColor: cyan; lineOpacity: 0.5"
-                cursor="rayOrigin: entity"
+                cursor="rayOrigin: entity; fuse: false; downEvents: triggerdown; upEvents: triggerup"
                 line="color: cyan; opacity: 0.5">
             </a-entity>
         </a-entity>
@@ -1738,6 +1738,47 @@ adb devices
                 showPanel('<strong>Informatie</strong><br>Volg de instructies op het scherm.', [{ text: 'Sluiten', good: true, action: () => { panel.style.display = 'none'; } }]);
             }
         });
+
+        // ===== VR DEBUG (optioneel zichtbaar) =====
+        try {
+            const DEBUG_VR = true;
+            if (DEBUG_VR) {
+                const head = document.getElementById('head');
+                if (head) {
+                    let debugText = document.getElementById('debugText');
+                    if (!debugText) {
+                        debugText = document.createElement('a-text');
+                        debugText.setAttribute('id', 'debugText');
+                        debugText.setAttribute('position', '0 -0.35 -0.9');
+                        debugText.setAttribute('align', 'center');
+                        debugText.setAttribute('color', '#0ff');
+                        debugText.setAttribute('width', '1.8');
+                        head.appendChild(debugText);
+                    }
+                    const rightHand = document.getElementById('rightHand');
+                    const updateDebug = (extra = '') => {
+                        const txt = `step=${step} ${extra}`;
+                        debugText.setAttribute('value', txt);
+                    };
+                    updateDebug();
+                    if (rightHand) {
+                        rightHand.addEventListener('raycaster-intersection', (e) => {
+                            const els = (e.detail && e.detail.els) ? e.detail.els : [];
+                            const label = els.length ? (els[0].getAttribute('id') || els[0].getAttribute('class') || els[0].tagName) : 'none';
+                            updateDebug(`hit=${label}`);
+                        });
+                        rightHand.addEventListener('raycaster-intersection-cleared', () => {
+                            updateDebug('hit=none');
+                        });
+                        rightHand.addEventListener('click', (e) => {
+                            updateDebug('clicked');
+                        });
+                        rightHand.addEventListener('triggerdown', () => updateDebug('triggerdown'));
+                        rightHand.addEventListener('triggerup', () => updateDebug('triggerup'));
+                    }
+                }
+            }
+        } catch (e) { /* ignore debug errors */ }
 
         resetBtn.onclick = reset;
 
