@@ -366,11 +366,11 @@ adb devices
         <!-- gaze targets (balletjes) - iets verder voor de spawn zodat gebruiker ze direct ziet -->
         <!-- Balletjes kunnen zowel via gaze als via controller raycast geactiveerd worden -->
         <a-sphere id="lookLeft" color="#ffd166" radius="0.22" position="-1.2 1.6 6.6" class="gazeTarget interactable"
-            visible="true"></a-sphere>
+            visible="false"></a-sphere>
         <a-sphere id="lookRight" color="#ffd166" radius="0.22" position="1.2 1.6 6.6" class="gazeTarget interactable"
-            visible="true"></a-sphere>
+            visible="false"></a-sphere>
         <a-text id="lookHint" value="Kijk eerst links en rechts naar de balletjes om je omgeving te checken"
-            align="center" color="#fff" position="0 2 6.6" scale="0.95 0.95 0.95" visible="true"></a-text>
+            align="center" color="#fff" position="0 2 6.6" scale="0.95 0.95 0.95" visible="false"></a-text>
 
         <!-- Licht -->
         <a-entity light="type: ambient; intensity: 0.8"></a-entity>
@@ -985,6 +985,15 @@ adb devices
 
         function nextStep() {
             step++;
+            // Teleport player to appropriate location for each step
+            const rig = document.getElementById('cameraRig');
+            if (rig) {
+                if (step === 1) rig.setAttribute('position', '0 0 6');  // Far from victim, safe area
+                else if (step === 2) rig.setAttribute('position', '0 0 0.5');  // Near victim for responsiveness check
+                else if (step === 3) rig.setAttribute('position', '0 0 0.5');  // Still near victim for 112 call
+                else if (step === 4) rig.setAttribute('position', '0 0 -1');  // At EHBO area
+                // After plaster applied: teleport to sidewalk to avoid ambulance (done in ambulanceArrivedSequence)
+            }
             // Zorg dat de 'Lees vraag' knop altijd de huidige vraag toont
             if (step === 1) {
                 // Stap 1: eigen veiligheid -> gaze check
@@ -1589,6 +1598,9 @@ adb devices
                         // ambulance rijdt weg
                         ambulance.setAttribute('animation__away', 'property: position; to: 0 0 40; dur: 4000; easing: linear');
                         setTimeout(() => {
+                            // Teleport player to sidewalk (safe from ambulance)
+                            const rig = document.getElementById('cameraRig');
+                            if (rig) rig.setAttribute('position', '0 0 8');
                             // einde van sequentie -> volgende stap (afsluitende fase)
                             // voeg vertraging toe zodat stap 5 goed zichtbaar is
                             setTimeout(() => nextStep(), 2000);
