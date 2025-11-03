@@ -588,6 +588,9 @@ adb devices
                         lookLeft.setAttribute('visible', false);
                         lookRight.setAttribute('visible', false);
                         document.getElementById('lookHint').setAttribute('visible', false);
+                        // Verwijder het gaze-trigger component zodat balletjes niet meer klikable zijn
+                        lookLeft.removeAttribute('gaze-trigger');
+                        lookRight.removeAttribute('gaze-trigger');
                         // Vertraging zodat gebruiker goed kan registreren dat balletjes compleet zijn
                         setTimeout(() => nextStep(), 800);
                     }
@@ -618,7 +621,7 @@ adb devices
 
         // Gaze-select: emits 'gaze-confirm' after a fuse (default 3000ms).
         // Gaze-select component REMOVED - using only controller triggers
-        
+
         // Pick-up / hold with mouse/touch/cursor (klikken pakt het object vast)
         AFRAME.registerComponent('pickable', {
             init: function () {
@@ -1668,6 +1671,9 @@ adb devices
             lookedLeft = false; lookedRight = false;
             lookLeft.setAttribute('visible', true); lookLeft.setAttribute('color', '#ffd166'); lookLeft.setAttribute('scale', '1 1 1'); lookLeft.setAttribute('position', '-1.2 1.6 6');
             lookRight.setAttribute('visible', true); lookRight.setAttribute('color', '#ffd166'); lookRight.setAttribute('scale', '1 1 1'); lookRight.setAttribute('position', '1.2 1.6 6');
+            // Verwijder gaze-trigger component voordat reset() eindigt zodat balletjes NOG NIET klikable zijn
+            lookLeft.removeAttribute('gaze-trigger');
+            lookRight.removeAttribute('gaze-trigger');
             document.getElementById('lookHint').setAttribute('visible', true); document.getElementById('lookHint').setAttribute('position', '0 2 6');
             // reset EHBO items positions and parent (naast ehbo)
             const scene = document.querySelector('a-scene');
@@ -1708,9 +1714,8 @@ adb devices
 
         resetBtn.onclick = reset;
 
-        // initialisatie: voeg componenten toe aan gaze targets (items worden pas interactief in stap 4)
-        lookLeft.setAttribute('gaze-trigger', { id: 'left' });
-        lookRight.setAttribute('gaze-trigger', { id: 'right' });
+        // INIT: balletjes krijgen gaze-trigger component NIET hier
+        // (ze worden pas interactief gemaakt in stap 1 action, niet eerder!)
         // spray/plaster blijven onzichtbaar en niet-pickable tot stap 4
         // begin
         reset();
