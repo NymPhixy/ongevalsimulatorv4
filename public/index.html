@@ -399,9 +399,9 @@ adb devices
 
         <!-- Look targets (balletjes) - klik met trigger om te activeren -->
         <a-sphere id="lookLeft" color="#ffd166" radius="0.22" position="-1.2 1.6 5.6" class="gazeTarget interactable"
-            visible="true"></a-sphere>
+            gaze-trigger="id: left" visible="true"></a-sphere>
         <a-sphere id="lookRight" color="#ffd166" radius="0.22" position="1.2 1.6 5.6" class="gazeTarget interactable"
-            visible="true"></a-sphere>
+            gaze-trigger="id: right" visible="true"></a-sphere>
         <a-text id="lookHint" value="Richt op de balletjes en druk trigger om te checken" align="center" color="#fff"
             position="0 2 5.6" scale="0.95 0.95 0.95" visible="true"></a-text>
 
@@ -563,11 +563,15 @@ adb devices
             const sceneEl = document.querySelector('a-scene');
             const actuallyInVR = sceneEl && sceneEl.is('vr-mode');
             
+            console.log('showPanel called. inVRMode:', inVRMode, 'actuallyInVR:', actuallyInVR);
+            
             if (actuallyInVR || inVRMode) {
                 // VR mode: creëer 3D panel in de wereld
+                console.log('Creating VR panel');
                 createVRPanel(html, options);
             } else {
                 // Desktop mode: gebruik 2D overlay
+                console.log('Creating 2D panel');
                 message.innerHTML = html;
                 ui.innerHTML = '';
                 options.forEach(opt => {
@@ -593,74 +597,77 @@ adb devices
             const vrPanel = document.createElement('a-entity');
             vrPanel.setAttribute('id', 'vrPanel');
             
-            // Positioneer het panel voor de camera
-            // In VR is de camera op hoogte 1.6, dus panel ook op die hoogte
-            // Plaats het 2 meter voor de camera
+            // Simpelere aanpak: plaats het panel op een vaste positie voor de speler
+            // Altijd op ooghoogte en voor de camera rig positie
             const cameraRig = document.getElementById('cameraRig');
             const rigPos = cameraRig ? cameraRig.getAttribute('position') : { x: 0, y: 0, z: 6 };
-            vrPanel.setAttribute('position', `${rigPos.x} 1.6 ${rigPos.z - 2}`);
             
-            // Laat panel naar camera kijken
-            vrPanel.setAttribute('look-at', '#head');
+            // Panel positie: voor de speler op ooghoogte
+            vrPanel.setAttribute('position', `0 1.6 ${rigPos.z - 2.5}`);
 
-            // Background
+            // Background plane
             const bg = document.createElement('a-plane');
-            bg.setAttribute('width', '2.5');
-            bg.setAttribute('height', '1.5');
+            bg.setAttribute('width', '3');
+            bg.setAttribute('height', '2');
             bg.setAttribute('color', '#1a1a2e');
             bg.setAttribute('opacity', '0.95');
+            bg.setAttribute('material', 'side: double');
             vrPanel.appendChild(bg);
 
             // Strip HTML tags voor text display
-            const textOnly = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+            const textOnly = html.replace(/<[^>]*>/g, '\n').replace(/\s+/g, ' ').trim();
 
             // Message text
             const messageText = document.createElement('a-text');
-            messageText.setAttribute('value', textOnly.substring(0, 250)); // Limit length
+            messageText.setAttribute('value', textOnly.substring(0, 300));
             messageText.setAttribute('align', 'center');
-            messageText.setAttribute('color', '#fff');
-            messageText.setAttribute('position', '0 0.4 0.01');
-            messageText.setAttribute('width', '2.2');
-            messageText.setAttribute('wrap-count', '40');
+            messageText.setAttribute('baseline', 'top');
+            messageText.setAttribute('color', '#ffffff');
+            messageText.setAttribute('position', '0 0.7 0.02');
+            messageText.setAttribute('width', '2.6');
+            messageText.setAttribute('wrap-count', '45');
+            messageText.setAttribute('line-height', '55');
             vrPanel.appendChild(messageText);
 
-            // Buttons
-            const buttonSpacing = 0.6;
-            const startY = -0.3;
+            // Buttons - groter en duidelijker
+            const buttonSpacing = 0.8;
+            const startY = -0.5;
             const buttonsPerRow = 2;
 
             options.forEach((opt, index) => {
                 const row = Math.floor(index / buttonsPerRow);
                 const col = index % buttonsPerRow;
                 const xPos = (col - (buttonsPerRow - 1) / 2) * buttonSpacing;
-                const yPos = startY - row * 0.25;
+                const yPos = startY - row * 0.3;
 
                 const btn = document.createElement('a-box');
                 btn.setAttribute('class', 'interactable phone-btn-vr');
-                btn.setAttribute('width', '0.5');
-                btn.setAttribute('height', '0.18');
-                btn.setAttribute('depth', '0.05');
+                btn.setAttribute('width', '0.7');
+                btn.setAttribute('height', '0.25');
+                btn.setAttribute('depth', '0.08');
                 btn.setAttribute('color', opt.good ? '#2f80ed' : '#95a5a6');
-                btn.setAttribute('position', `${xPos} ${yPos} 0.01`);
+                btn.setAttribute('position', `${xPos} ${yPos} 0.02`);
 
                 const btnText = document.createElement('a-text');
-                btnText.setAttribute('value', opt.text.substring(0, 15));
+                btnText.setAttribute('value', opt.text.substring(0, 20));
                 btnText.setAttribute('align', 'center');
-                btnText.setAttribute('color', '#fff');
-                btnText.setAttribute('position', '0 0 0.03');
-                btnText.setAttribute('width', '0.7');
+                btnText.setAttribute('baseline', 'center');
+                btnText.setAttribute('color', '#ffffff');
+                btnText.setAttribute('position', '0 0 0.05');
+                btnText.setAttribute('width', '1');
                 btn.appendChild(btnText);
 
                 btn.addEventListener('click', () => {
+                    console.log('VR Panel button clicked:', opt.text);
                     // Verwijder panel
                     if (vrPanel.parentNode) vrPanel.parentNode.removeChild(vrPanel);
                     // Execute action
-                    opt.action();
+                    if (opt.action) opt.action();
                 });
 
                 // Hover effect
                 btn.addEventListener('raycaster-intersected', () => {
-                    btn.setAttribute('scale', '1.1 1.1 1.1');
+                    btn.setAttribute('scale', '1.15 1.15 1.15');
                 });
                 btn.addEventListener('raycaster-intersected-cleared', () => {
                     btn.setAttribute('scale', '1 1 1');
@@ -669,6 +676,7 @@ adb devices
                 vrPanel.appendChild(btn);
             });
 
+            console.log('VR Panel created and appending to scene');
             scene.appendChild(vrPanel);
         }
 
@@ -861,8 +869,29 @@ adb devices
                     }
                 };
 
-                // Simpel: gebruik click event (werkt met controller trigger)
+                // Click event voor trigger
                 el.addEventListener('click', handleInteraction);
+                
+                // Hover effecten voor visuele feedback
+                el.addEventListener('raycaster-intersected', (evt) => {
+                    if (step === 1) {
+                        const id = this.data.id;
+                        // Alleen groter maken als nog niet geactiveerd
+                        if ((id === 'left' && !lookedLeft) || (id === 'right' && !lookedRight)) {
+                            el.setAttribute('scale', '1.15 1.15 1.15');
+                        }
+                    }
+                });
+                
+                el.addEventListener('raycaster-intersected-cleared', (evt) => {
+                    if (step === 1) {
+                        const id = this.data.id;
+                        // Reset scale als nog niet geactiveerd
+                        if ((id === 'left' && !lookedLeft) || (id === 'right' && !lookedRight)) {
+                            el.setAttribute('scale', '1 1 1');
+                        }
+                    }
+                });
             }
         });
 
