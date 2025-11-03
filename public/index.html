@@ -1,5 +1,6 @@
 adb version
-adb devices<!doctype html>
+adb devices
+<!doctype html>
 <html lang="nl">
 
 <head>
@@ -78,6 +79,40 @@ adb devices<!doctype html>
             border: 1px solid rgba(255, 255, 255, 0.03);
         }
 
+        /* VR Knop styling */
+        #vrButton {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            padding: 16px 28px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: 800;
+            cursor: pointer;
+            box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4);
+            z-index: 300;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #vrButton:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px rgba(102, 126, 234, 0.6);
+        }
+
+        #vrButton:active {
+            transform: translateY(0);
+        }
+
+        #vrButton.in-vr {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        }
+
         @media (max-width:600px) {
             #panel {
                 top: 8px;
@@ -89,6 +124,13 @@ adb devices<!doctype html>
                 font-size: 16px;
                 padding: 12px 16px;
                 min-width: 120px;
+            }
+
+            #vrButton {
+                bottom: 10px;
+                right: 10px;
+                padding: 12px 20px;
+                font-size: 16px;
             }
         }
 
@@ -162,20 +204,32 @@ adb devices<!doctype html>
     </div>
     <button id="reset" class="btn">Reset</button>
     <button id="readQuestion">Lees vraag</button>
+    
+    <!-- VR Knop -->
+    <button id="vrButton">
+        <span>🥽</span>
+        <span id="vrButtonText">Start VR</span>
+    </button>
 
     <div id="phone">
         <div id="phoneScreen">112 centrale: Wat is uw noodmelding?</div>
         <div id="phoneChoices"></div>
     </div>
 
-    <a-scene collision-check background="color: #aed9ff">
-        <!-- Camera: spawn recht tegenover slachtoffer (spawn z=6) -->
-        <a-entity id="cameraRig" position="0 0 6">
-            <a-entity camera look-controls wasd-controls position="0 1.6 0">
-                <a-entity cursor="fuse: true; fuseTimeout: 900" position="0 0 -1"
-                    geometry="primitive: ring; radiusInner: 0.01; radiusOuter: 0.02"
-                    material="color: black; shader: flat">
-                </a-entity>
+    <a-scene collision-check background="color: #aed9ff" vr-mode-ui="enabled: true">
+        <!-- Camera Rig met VR controllers en thumbstick locomotion -->
+        <a-entity id="cameraRig" position="0 0 6" movement-controls="controls: checkpoint, keyboard; speed: 0.15">
+            <!-- Camera met look-controls -->
+            <a-entity id="head" camera look-controls position="0 1.6 0"></a-entity>
+
+            <!-- Linker hand controller: locomotion -->
+            <a-entity id="leftHand" oculus-touch-controls="hand: left" thumbstick-locomotion>
+            </a-entity>
+
+            <!-- Rechter hand controller: raycaster voor interacties -->
+            <a-entity id="rightHand" oculus-touch-controls="hand: right" laser-controls="hand: right"
+                raycaster="objects: .interactable, .gazeTarget, .phone-btn-vr; far: 10; lineColor: cyan; lineOpacity: 0.5"
+                line="color: cyan; opacity: 0.5">
             </a-entity>
         </a-entity>
 
@@ -274,8 +328,8 @@ adb devices<!doctype html>
                 position="-0.6 0.3 -0.9"></a-cylinder>
         </a-entity>
 
-        <!-- Persoon (realistischer opgebouwd uit meerdere primitives) -->
-        <a-entity id="person" position="0 0 0">
+        <!-- Persoon (realistischer opgebouwd uit meerdere primitives) - interactable voor VR -->
+        <a-entity id="person" position="0 0 0" class="interactable">
             <!-- torso (houd id body voor scripts) -->
             <a-cylinder id="body" radius="0.28" height="0.9" color="#e0a66f" position="0 0.55 0"></a-cylinder>
             <!-- head -->
@@ -298,7 +352,7 @@ adb devices<!doctype html>
         <a-box id="ehbo" width="0.45" height="0.22" depth="0.3" color="#e74c3c" position="0.8 0 1.2"
             visible="false"></a-box>
 
-        <!-- Spray en Pleister (komen op de EHBO-doos te liggen) -->
+        <!-- Spray en Pleister (interactable met triggers) -->
         <a-cylinder id="spray" radius="0.12" height="0.4" color="#3498db" position="0.4 0.2 1.4" class="interactable"
             visible="false"></a-cylinder>
         <a-text id="sprayLabel" value="Spray" align="center" color="#fff" position="0.4 0.65 1.4" scale="0.6 0.6 0.6"
@@ -338,13 +392,13 @@ adb devices<!doctype html>
             <a-cone radius-bottom="0.6" radius-top="0" height="0.9" color="#ffffff" position="0 0.51 0"></a-cone>
         </a-entity>
 
-        <!-- gaze targets (balletjes) - iets verder voor de spawn zodat gebruiker ze direct ziet -->
-        <a-sphere id="lookLeft" color="#ffd166" radius="0.22" position="-1.2 1.6 6.6" class="gazeTarget"
+        <!-- Look targets (balletjes) - interactable met triggers -->
+        <a-sphere id="lookLeft" color="#ffd166" radius="0.22" position="-1.2 1.6 5.6" class="gazeTarget interactable"
             visible="true"></a-sphere>
-        <a-sphere id="lookRight" color="#ffd166" radius="0.22" position="1.2 1.6 6.6" class="gazeTarget"
+        <a-sphere id="lookRight" color="#ffd166" radius="0.22" position="1.2 1.6 5.6" class="gazeTarget interactable"
             visible="true"></a-sphere>
-        <a-text id="lookHint" value="Kijk eerst links en rechts naar de balletjes om je omgeving te checken"
-            align="center" color="#fff" position="0 2 6.6" scale="0.95 0.95 0.95" visible="true"></a-text>
+        <a-text id="lookHint" value="Richt op de balletjes en druk de trigger om je omgeving te checken" align="center"
+            color="#fff" position="0 2 5.6" scale="0.95 0.95 0.95" visible="true"></a-text>
 
         <!-- Licht -->
         <a-entity light="type: ambient; intensity: 0.8"></a-entity>
@@ -355,6 +409,68 @@ adb devices<!doctype html>
         // Importeer A-Frame als module en verkrijg de globale AFRAME export.
         // Hierdoor is `AFRAME` gegarandeerd beschikbaar in deze module.
         import AFRAME from 'aframe';
+
+        // ===== VR COMPONENTEN =====
+
+        // Thumbstick Locomotion Component (linker controller)
+        AFRAME.registerComponent('thumbstick-locomotion', {
+            init: function () {
+                this.el.addEventListener('thumbstickmoved', (evt) => {
+                    const cameraRig = document.getElementById('cameraRig');
+                    const camera = document.getElementById('head');
+
+                    if (!cameraRig || !camera) return;
+
+                    // Haal thumbstick waarden op (-1 tot 1)
+                    const x = evt.detail.x;
+                    const y = evt.detail.y;
+
+                    // Deadzone om drift te voorkomen
+                    if (Math.abs(x) < 0.2 && Math.abs(y) < 0.2) return;
+
+                    // Snelheid van beweging
+                    const speed = 0.05;
+
+                    // Haal camera rotatie voor forward/backward beweging
+                    const rotation = camera.getAttribute('rotation');
+                    const radians = THREE.Math.degToRad(rotation.y);
+
+                    // Bereken beweging gebaseerd op kijkrichting
+                    const deltaX = -Math.sin(radians) * y * speed + Math.cos(radians) * x * speed;
+                    const deltaZ = -Math.cos(radians) * y * speed - Math.sin(radians) * x * speed;
+
+                    // Update positie
+                    const currentPos = cameraRig.getAttribute('position');
+                    cameraRig.setAttribute('position', {
+                        x: currentPos.x + deltaX,
+                        y: currentPos.y,
+                        z: currentPos.z + deltaZ
+                    });
+                });
+            }
+        });
+
+        // VR Interaction Component (rechter controller trigger)
+        AFRAME.registerComponent('vr-interactor', {
+            init: function () {
+                this.raycaster = this.el.components.raycaster;
+
+                this.el.addEventListener('triggerdown', () => {
+                    if (!this.raycaster) return;
+
+                    const intersections = this.raycaster.intersections;
+                    if (intersections.length > 0) {
+                        const targetEl = intersections[0].object.el;
+
+                        // Simuleer click event voor bestaande handlers
+                        if (targetEl) {
+                            targetEl.emit('click');
+                        }
+                    }
+                });
+            }
+        });
+
         const panel = document.getElementById('panel');
         const ui = document.getElementById('ui');
         const message = document.getElementById('message');
@@ -379,6 +495,8 @@ adb devices<!doctype html>
         const plasterLabel = document.getElementById('plasterLabel');
         const medic1 = document.getElementById('medic1');
         const medic2 = document.getElementById('medic2');
+        const vrButton = document.getElementById('vrButton');
+        const vrButtonText = document.getElementById('vrButtonText');
 
         let step = 0;
         let crashed = false;
@@ -391,52 +509,273 @@ adb devices<!doctype html>
         let heldItem = null; // 'spray' or 'plaster'
         let ambulanceEnRoute = false;
         let ambulanceArriving = false;
+        let inVRMode = false;
+
+        // Detecteer VR mode
+        const sceneEl = document.querySelector('a-scene');
+        sceneEl.addEventListener('enter-vr', () => {
+            inVRMode = true;
+            vrButton.classList.add('in-vr');
+            vrButtonText.textContent = 'Exit VR';
+            // Voeg VR interactor component toe aan rechter hand
+            const rightHand = document.getElementById('rightHand');
+            if (rightHand && !rightHand.hasAttribute('vr-interactor')) {
+                rightHand.setAttribute('vr-interactor', '');
+            }
+        });
+
+        sceneEl.addEventListener('exit-vr', () => {
+            inVRMode = false;
+            vrButton.classList.remove('in-vr');
+            vrButtonText.textContent = 'Start VR';
+        });
+
+        // VR Button click handler
+        vrButton.addEventListener('click', () => {
+            if (!sceneEl) return;
+            
+            if (inVRMode) {
+                // Exit VR
+                sceneEl.exitVR();
+            } else {
+                // Enter VR
+                sceneEl.enterVR().catch(err => {
+                    console.error('Kan VR niet starten:', err);
+                    alert('VR kon niet gestart worden. Zorg dat je een VR-headset hebt aangesloten of gebruik een VR-compatibele browser.');
+                });
+            }
+        });
 
         function showPanel(html, options = []) {
-            message.innerHTML = html;
-            ui.innerHTML = '';
-            options.forEach(opt => {
-                const btn = document.createElement('button');
-                btn.textContent = opt.text;
-                btn.className = 'btn ' + (opt.good ? 'btn-ok' : 'btn-bad');
-                btn.onclick = opt.action;
-                ui.appendChild(btn);
+            if (inVRMode) {
+                // VR mode: creëer 3D panel in de wereld
+                createVRPanel(html, options);
+            } else {
+                // Desktop mode: gebruik 2D overlay
+                message.innerHTML = html;
+                ui.innerHTML = '';
+                options.forEach(opt => {
+                    const btn = document.createElement('button');
+                    btn.textContent = opt.text;
+                    btn.className = 'btn ' + (opt.good ? 'btn-ok' : 'btn-bad');
+                    btn.onclick = opt.action;
+                    ui.appendChild(btn);
+                });
+                panel.style.display = 'block';
+            }
+        }
+
+        // Creëer 3D panel voor VR
+        function createVRPanel(html, options = []) {
+            const scene = document.querySelector('a-scene');
+
+            // Verwijder oude VR panel als die bestaat
+            const oldPanel = document.getElementById('vrPanel');
+            if (oldPanel) oldPanel.parentNode.removeChild(oldPanel);
+
+            const vrPanel = document.createElement('a-entity');
+            vrPanel.setAttribute('id', 'vrPanel');
+            vrPanel.setAttribute('position', '0 1.6 4.5');
+
+            // Background
+            const bg = document.createElement('a-plane');
+            bg.setAttribute('width', '2');
+            bg.setAttribute('height', '1.2');
+            bg.setAttribute('color', '#1a1a2e');
+            bg.setAttribute('opacity', '0.95');
+            vrPanel.appendChild(bg);
+
+            // Strip HTML tags voor text display
+            const textOnly = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
+            // Message text
+            const messageText = document.createElement('a-text');
+            messageText.setAttribute('value', textOnly.substring(0, 200)); // Limit length
+            messageText.setAttribute('align', 'center');
+            messageText.setAttribute('color', '#fff');
+            messageText.setAttribute('position', '0 0.3 0.01');
+            messageText.setAttribute('width', '1.8');
+            messageText.setAttribute('wrap-count', '35');
+            vrPanel.appendChild(messageText);
+
+            // Buttons
+            const buttonSpacing = 0.6;
+            const startY = -0.3;
+            const buttonsPerRow = 2;
+
+            options.forEach((opt, index) => {
+                const row = Math.floor(index / buttonsPerRow);
+                const col = index % buttonsPerRow;
+                const xPos = (col - (buttonsPerRow - 1) / 2) * buttonSpacing;
+                const yPos = startY - row * 0.25;
+
+                const btn = document.createElement('a-box');
+                btn.setAttribute('class', 'interactable phone-btn-vr');
+                btn.setAttribute('width', '0.5');
+                btn.setAttribute('height', '0.18');
+                btn.setAttribute('depth', '0.05');
+                btn.setAttribute('color', opt.good ? '#2f80ed' : '#95a5a6');
+                btn.setAttribute('position', `${xPos} ${yPos} 0.01`);
+
+                const btnText = document.createElement('a-text');
+                btnText.setAttribute('value', opt.text.substring(0, 15));
+                btnText.setAttribute('align', 'center');
+                btnText.setAttribute('color', '#fff');
+                btnText.setAttribute('position', '0 0 0.03');
+                btnText.setAttribute('width', '0.7');
+                btn.appendChild(btnText);
+
+                btn.addEventListener('click', () => {
+                    // Verwijder panel
+                    if (vrPanel.parentNode) vrPanel.parentNode.removeChild(vrPanel);
+                    // Execute action
+                    opt.action();
+                });
+
+                // Hover effect
+                btn.addEventListener('raycaster-intersected', () => {
+                    btn.setAttribute('scale', '1.1 1.1 1.1');
+                });
+                btn.addEventListener('raycaster-intersected-cleared', () => {
+                    btn.setAttribute('scale', '1 1 1');
+                });
+
+                vrPanel.appendChild(btn);
             });
-            panel.style.display = 'block';
+
+            scene.appendChild(vrPanel);
         }
 
         function showFeedback(text, isGood, next) {
-            message.innerHTML = text;
-            ui.innerHTML = '';
-            const btn = document.createElement('button');
-            btn.textContent = isGood ? 'Verder' : 'Opnieuw proberen';
-            btn.className = 'btn ' + (isGood ? 'btn-ok' : 'btn-bad');
-            btn.onclick = () => {
-                panel.style.display = 'none';
-                if (isGood && typeof next === 'function') next();
-                if (!isGood) reset();
-            };
-            ui.appendChild(btn);
-            panel.style.display = 'block';
+            if (inVRMode) {
+                // VR mode: 3D feedback
+                createVRPanel(text, [
+                    {
+                        text: isGood ? 'Verder' : 'Opnieuw',
+                        good: isGood,
+                        action: () => {
+                            if (isGood && typeof next === 'function') next();
+                            if (!isGood) reset();
+                        }
+                    }
+                ]);
+            } else {
+                // Desktop mode
+                message.innerHTML = text;
+                ui.innerHTML = '';
+                const btn = document.createElement('button');
+                btn.textContent = isGood ? 'Verder' : 'Opnieuw proberen';
+                btn.className = 'btn ' + (isGood ? 'btn-ok' : 'btn-bad');
+                btn.onclick = () => {
+                    panel.style.display = 'none';
+                    if (isGood && typeof next === 'function') next();
+                    if (!isGood) reset();
+                };
+                ui.appendChild(btn);
+                panel.style.display = 'block';
+            }
         }
 
-        // vervang of voeg toe: vraag-interface zonder hints vooraf
+        // vraag-interface zonder hints vooraf
         function showQuestion(html, choices = []) {
-            message.innerHTML = html;
-            ui.innerHTML = '';
-            // choices: [{ text: '...', correct: true/false, feedback: '...','next': fn }]
-            choices.forEach(choice => {
-                const btn = document.createElement('button');
-                btn.textContent = choice.text;
-                btn.className = 'btn btn-neutral';
-                btn.onclick = () => evaluateAnswer(choice);
-                ui.appendChild(btn);
+            if (inVRMode) {
+                // VR mode: 3D vraag interface
+                createVRQuestionPanel(html, choices);
+            } else {
+                // Desktop mode
+                message.innerHTML = html;
+                ui.innerHTML = '';
+                choices.forEach(choice => {
+                    const btn = document.createElement('button');
+                    btn.textContent = choice.text;
+                    btn.className = 'btn btn-neutral';
+                    btn.onclick = () => evaluateAnswer(choice);
+                    ui.appendChild(btn);
+                });
+                panel.style.display = 'block';
+            }
+        }
+
+        // VR Question Panel
+        function createVRQuestionPanel(html, choices = []) {
+            const scene = document.querySelector('a-scene');
+
+            const oldPanel = document.getElementById('vrPanel');
+            if (oldPanel) oldPanel.parentNode.removeChild(oldPanel);
+
+            const vrPanel = document.createElement('a-entity');
+            vrPanel.setAttribute('id', 'vrPanel');
+            vrPanel.setAttribute('position', '0 1.6 4.5');
+
+            // Background
+            const bg = document.createElement('a-plane');
+            bg.setAttribute('width', '2.2');
+            bg.setAttribute('height', '1.5');
+            bg.setAttribute('color', '#1a1a2e');
+            bg.setAttribute('opacity', '0.95');
+            vrPanel.appendChild(bg);
+
+            // Strip HTML tags
+            const textOnly = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
+            // Question text
+            const questionText = document.createElement('a-text');
+            questionText.setAttribute('value', textOnly.substring(0, 250));
+            questionText.setAttribute('align', 'center');
+            questionText.setAttribute('color', '#fff');
+            questionText.setAttribute('position', '0 0.5 0.01');
+            questionText.setAttribute('width', '2');
+            questionText.setAttribute('wrap-count', '40');
+            vrPanel.appendChild(questionText);
+
+            // Choice buttons
+            const startY = 0.1;
+            choices.forEach((choice, index) => {
+                const yPos = startY - index * 0.28;
+
+                const btn = document.createElement('a-box');
+                btn.setAttribute('class', 'interactable phone-btn-vr');
+                btn.setAttribute('width', '1.9');
+                btn.setAttribute('height', '0.22');
+                btn.setAttribute('depth', '0.05');
+                btn.setAttribute('color', '#3a3f4a');
+                btn.setAttribute('position', `0 ${yPos} 0.01`);
+
+                const btnText = document.createElement('a-text');
+                btnText.setAttribute('value', choice.text.substring(0, 50));
+                btnText.setAttribute('align', 'center');
+                btnText.setAttribute('color', '#fff');
+                btnText.setAttribute('position', '0 0 0.03');
+                btnText.setAttribute('width', '2.5');
+                btn.appendChild(btnText);
+
+                btn.addEventListener('click', () => {
+                    if (vrPanel.parentNode) vrPanel.parentNode.removeChild(vrPanel);
+                    evaluateAnswer(choice);
+                });
+
+                // Hover effect
+                btn.addEventListener('raycaster-intersected', () => {
+                    btn.setAttribute('color', choice.correct ? '#27ae60' : '#e67e22');
+                    btn.setAttribute('scale', '1.05 1.05 1.05');
+                });
+                btn.addEventListener('raycaster-intersected-cleared', () => {
+                    btn.setAttribute('color', '#3a3f4a');
+                    btn.setAttribute('scale', '1 1 1');
+                });
+
+                vrPanel.appendChild(btn);
             });
-            panel.style.display = 'block';
+
+            scene.appendChild(vrPanel);
         }
 
         function evaluateAnswer(choice) {
-            panel.style.display = 'none'; // hide question while showing feedback
+            // Verberg beide panels (2D en 3D)
+            panel.style.display = 'none';
+            const vrPanel = document.getElementById('vrPanel');
+            if (vrPanel && vrPanel.parentNode) vrPanel.parentNode.removeChild(vrPanel);
+
             if (choice.correct) {
                 showFeedback('✅ ' + (choice.feedback || 'Goed gedaan.'), true, () => {
                     if (typeof choice.next === 'function') choice.next();
@@ -467,12 +806,12 @@ adb devices<!doctype html>
             car.setAttribute('animation__drive', `property: position; from: ${fromStr}; to: 0 0 -0.6; dur: 3800; easing: linear`);
         }
 
-        // Komponenten voor interactiviteit
+        // Komponenten voor interactiviteit (aangepast voor VR triggers)
         AFRAME.registerComponent('gaze-trigger', {
             schema: { id: { type: 'string' } },
             init: function () {
                 const el = this.el;
-                el.addEventListener('click', () => {
+                const handleInteraction = () => {
                     const id = this.data.id;
                     if (id === 'left') {
                         lookedLeft = true;
@@ -483,13 +822,23 @@ adb devices<!doctype html>
                         el.setAttribute('color', '#9ae6b4');
                         el.setAttribute('scale', '1.3 1.3 1.3');
                     }
-                    // als beide bekeken: verberg balletjes en ga verder INPLAATS VAN TELEPORT
+                    // als beide bekeken: verberg balletjes en ga verder
                     if (lookedLeft && lookedRight) {
                         lookLeft.setAttribute('visible', false);
                         lookRight.setAttribute('visible', false);
                         document.getElementById('lookHint').setAttribute('visible', false);
-                        // Laat gebruiker zelf naar slachtoffer lopen — ga direct verder in de flow
                         nextStep();
+                    }
+                };
+
+                el.addEventListener('click', handleInteraction);
+                // Voor VR controller triggers
+                el.addEventListener('raycaster-intersected', (evt) => {
+                    el.setAttribute('scale', '1.15 1.15 1.15');
+                });
+                el.addEventListener('raycaster-intersected-cleared', (evt) => {
+                    if (!lookedLeft && !lookedRight) {
+                        el.setAttribute('scale', '1 1 1');
                     }
                 });
             }
@@ -514,7 +863,7 @@ adb devices<!doctype html>
             }
         });
 
-        // Pick-up / hold with mouse/touch/cursor (klikken pakt het object vast)
+        // Pick-up / hold met VR controller triggers
         AFRAME.registerComponent('pickable', {
             init: function () {
                 const el = this.el;
@@ -522,18 +871,36 @@ adb devices<!doctype html>
                     // only allow pickup when items zijn usable (EHBO stage)
                     if (step >= 4 && !heldItem && el.getAttribute('visible') === true) {
                         heldItem = el.getAttribute('id');
-                        // attach to camera so user 'holds' it
+
+                        // In VR: attach to rechter controller, anders aan camera
+                        const attachTo = inVRMode ?
+                            document.getElementById('rightHand') :
+                            document.querySelector('[camera]');
+
+                        if (!attachTo) return;
+
                         try {
-                            // reparent to camera (camera is inside cameraRig)
-                            const scene = document.querySelector('a-scene');
-                            // remove from current parent (if possible)
-                            if (el.object3D && el.object3D.parent) el.object3D.parent.removeChild(el.object3D);
-                            const cam = document.querySelector('[camera]').parentEl;
-                            cam.appendChild(el);
-                            el.setAttribute('position', '0 -0.12 -0.6');
-                            el.setAttribute('rotation', '0 0 0');
-                            el.setAttribute('scale', '0.9 0.9 0.9');
-                            showFeedback('Je hebt de ' + (heldItem === 'spray' ? 'spraybus' : 'pleister') + ' gepakt. Klik op het slachtoffer om het te gebruiken.', true, () => { });
+                            // Remove from current parent
+                            if (el.object3D && el.object3D.parent) {
+                                el.object3D.parent.remove(el.object3D);
+                            }
+
+                            // Attach to controller/camera
+                            attachTo.appendChild(el);
+
+                            if (inVRMode) {
+                                // Positie ten opzichte van rechter controller
+                                el.setAttribute('position', '0 0.1 -0.15');
+                                el.setAttribute('rotation', '0 0 0');
+                                el.setAttribute('scale', '0.7 0.7 0.7');
+                            } else {
+                                // Desktop mode positie
+                                el.setAttribute('position', '0 -0.12 -0.6');
+                                el.setAttribute('rotation', '0 0 0');
+                                el.setAttribute('scale', '0.9 0.9 0.9');
+                            }
+
+                            showFeedback('Je hebt de ' + (heldItem === 'spray' ? 'spraybus' : 'pleister') + ' gepakt. Gebruik het op het slachtoffer.', true, () => { });
                             // disable glow while held
                             el.components['glow'] && el.setAttribute('glow', { active: false });
                         } catch (e) {
@@ -542,10 +909,22 @@ adb devices<!doctype html>
                     }
                 }
 
-                // support mouse/touch and A-Frame click events
+                // support mouse/touch, A-Frame click events en VR triggers
                 el.addEventListener('click', tryPickup);
                 el.addEventListener('mousedown', tryPickup);
                 el.addEventListener('touchstart', tryPickup);
+
+                // Hover effect in VR
+                el.addEventListener('raycaster-intersected', (evt) => {
+                    if (step >= 4 && !heldItem) {
+                        el.setAttribute('scale', '1.15 1.15 1.15');
+                    }
+                });
+                el.addEventListener('raycaster-intersected-cleared', (evt) => {
+                    if (!heldItem) {
+                        el.setAttribute('scale', '1 1 1');
+                    }
+                });
             }
         });
 
@@ -809,75 +1188,295 @@ adb devices<!doctype html>
             );
         }
 
-        // Open phone UI: toon toetsenbord zodat gebruiker zelf 112 kan intoetsen
+        // Open phone UI: 3D telefoon interface voor VR
         function openPhone() {
             panel.style.display = 'none';
-            phone.style.display = 'flex';
-            phoneScreen.textContent = "Toets noodnummer:";
-            phoneChoices.innerHTML = '';
 
-            // display number line
-            const numLine = document.createElement('div');
-            numLine.id = 'phoneNumber';
-            numLine.style.fontSize = '28px';
-            numLine.style.textAlign = 'center';
-            numLine.style.padding = '6px 0 12px 0';
-            numLine.textContent = '';
-            phoneChoices.appendChild(numLine);
+            if (inVRMode) {
+                // Creëer 3D telefoon interface in VR
+                createVRPhoneInterface();
+            } else {
+                // Desktop: gebruik 2D overlay
+                phone.style.display = 'flex';
+                phoneScreen.textContent = "Toets noodnummer:";
+                phoneChoices.innerHTML = '';
 
-            // keypad
-            const keypad = document.createElement('div');
-            keypad.style.display = 'grid';
-            keypad.style.gridTemplateColumns = 'repeat(3, 1fr)';
-            keypad.style.gap = '8px';
-            keypad.style.marginBottom = '10px';
-            const digits = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
-            digits.forEach(d => {
-                const b = document.createElement('button');
-                b.textContent = d;
-                b.className = 'phone-btn phone-good';
-                b.style.padding = '12px 6px';
-                b.onclick = () => {
-                    numLine.textContent = (numLine.textContent + d).slice(0, 6); // max lengte
+                // display number line
+                const numLine = document.createElement('div');
+                numLine.id = 'phoneNumber';
+                numLine.style.fontSize = '28px';
+                numLine.style.textAlign = 'center';
+                numLine.style.padding = '6px 0 12px 0';
+                numLine.textContent = '';
+                phoneChoices.appendChild(numLine);
+
+                // keypad
+                const keypad = document.createElement('div');
+                keypad.style.display = 'grid';
+                keypad.style.gridTemplateColumns = 'repeat(3, 1fr)';
+                keypad.style.gap = '8px';
+                keypad.style.marginBottom = '10px';
+                const digits = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
+                digits.forEach(d => {
+                    const b = document.createElement('button');
+                    b.textContent = d;
+                    b.className = 'phone-btn phone-good';
+                    b.style.padding = '12px 6px';
+                    b.onclick = () => {
+                        numLine.textContent = (numLine.textContent + d).slice(0, 6); // max lengte
+                    };
+                    keypad.appendChild(b);
+                });
+                phoneChoices.appendChild(keypad);
+
+                // controls row: clear, call, close
+                const controls = document.createElement('div');
+                controls.style.display = 'flex';
+                controls.style.gap = '8px';
+                const clearBtn = document.createElement('button');
+                clearBtn.textContent = 'Clear';
+                clearBtn.className = 'phone-btn phone-bad';
+                clearBtn.onclick = () => { numLine.textContent = ''; };
+                const callBtn = document.createElement('button');
+                callBtn.textContent = 'Bellen';
+                callBtn.className = 'phone-btn phone-good';
+                callBtn.onclick = () => {
+                    const number = numLine.textContent;
+                    if (number === '112') {
+                        // correct: ga door
+                        phoneScreen.textContent = "112 centrale: Verbonden. Wat is uw noodmelding?";
+                        phoneChoices.innerHTML = '';
+                        setTimeout(() => phoneStep2(), 600);
+                    } else {
+                        phoneScreen.textContent = '112 centrale: Ongeldig nummer. Probeer opnieuw.';
+                        setTimeout(() => {
+                            phoneScreen.textContent = "Toets noodnummer:";
+                            numLine.textContent = '';
+                        }, 1200);
+                    }
                 };
-                keypad.appendChild(b);
-            });
-            phoneChoices.appendChild(keypad);
+                const closeBtn = document.createElement('button');
+                closeBtn.textContent = 'Sluiten';
+                closeBtn.className = 'phone-btn';
+                closeBtn.onclick = () => { phone.style.display = 'none'; };
+                controls.appendChild(clearBtn);
+                controls.appendChild(callBtn);
+                controls.appendChild(closeBtn);
+                phoneChoices.appendChild(controls);
+            }
+        }
 
-            // controls row: clear, call, close
-            const controls = document.createElement('div');
-            controls.style.display = 'flex';
-            controls.style.gap = '8px';
-            const clearBtn = document.createElement('button');
-            clearBtn.textContent = 'Clear';
-            clearBtn.className = 'phone-btn phone-bad';
-            clearBtn.onclick = () => { numLine.textContent = ''; };
-            const callBtn = document.createElement('button');
-            callBtn.textContent = 'Bellen';
-            callBtn.className = 'phone-btn phone-good';
-            callBtn.onclick = () => {
-                const number = numLine.textContent;
-                if (number === '112') {
-                    // correct: ga door
-                    phoneScreen.textContent = "112 centrale: Verbonden. Wat is uw noodmelding?";
-                    phoneChoices.innerHTML = '';
-                    setTimeout(() => phoneStep2(), 600);
-                } else {
-                    phoneScreen.textContent = '112 centrale: Ongeldig nummer. Probeer opnieuw.';
-                    setTimeout(() => {
-                        phoneScreen.textContent = "Toets noodnummer:";
-                        numLine.textContent = '';
-                    }, 1200);
+        // Creëer 3D telefoon interface voor VR
+        function createVRPhoneInterface() {
+            const scene = document.querySelector('a-scene');
+
+            // Verwijder oude VR telefoon als die bestaat
+            const oldPhone = document.getElementById('vrPhone');
+            if (oldPhone) oldPhone.parentNode.removeChild(oldPhone);
+
+            // Creëer telefoon scherm
+            const vrPhoneContainer = document.createElement('a-entity');
+            vrPhoneContainer.setAttribute('id', 'vrPhone');
+            vrPhoneContainer.setAttribute('position', '0 1.5 4');
+
+            // Telefoon body
+            const phoneBody = document.createElement('a-box');
+            phoneBody.setAttribute('width', '0.8');
+            phoneBody.setAttribute('height', '1.3');
+            phoneBody.setAttribute('depth', '0.05');
+            phoneBody.setAttribute('color', '#222');
+            phoneBody.setAttribute('position', '0 0 0');
+            vrPhoneContainer.appendChild(phoneBody);
+
+            // Screen text
+            const screenText = document.createElement('a-text');
+            screenText.setAttribute('id', 'vrPhoneText');
+            screenText.setAttribute('value', 'Toets 112');
+            screenText.setAttribute('align', 'center');
+            screenText.setAttribute('color', '#fff');
+            screenText.setAttribute('position', '0 0.5 0.03');
+            screenText.setAttribute('width', '0.7');
+            vrPhoneContainer.appendChild(screenText);
+
+            // Number display
+            const numberDisplay = document.createElement('a-text');
+            numberDisplay.setAttribute('id', 'vrPhoneNumber');
+            numberDisplay.setAttribute('value', '');
+            numberDisplay.setAttribute('align', 'center');
+            numberDisplay.setAttribute('color', '#0f0');
+            numberDisplay.setAttribute('position', '0 0.3 0.03');
+            numberDisplay.setAttribute('width', '0.8');
+            vrPhoneContainer.appendChild(numberDisplay);
+
+            let currentNumber = '';
+
+            // Keypad
+            const digits = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
+            let row = 0;
+            let col = 0;
+
+            digits.forEach(digit => {
+                const btn = document.createElement('a-box');
+                btn.setAttribute('class', 'phone-btn-vr interactable');
+                btn.setAttribute('width', '0.2');
+                btn.setAttribute('height', '0.15');
+                btn.setAttribute('depth', '0.03');
+                btn.setAttribute('color', '#27ae60');
+                btn.setAttribute('position', `${-0.25 + col * 0.25} ${-0.1 - row * 0.18} 0.03`);
+
+                const btnText = document.createElement('a-text');
+                btnText.setAttribute('value', digit);
+                btnText.setAttribute('align', 'center');
+                btnText.setAttribute('color', '#fff');
+                btnText.setAttribute('position', `0 0 0.02`);
+                btnText.setAttribute('width', '0.3');
+                btn.appendChild(btnText);
+
+                btn.addEventListener('click', () => {
+                    if (currentNumber.length < 6) {
+                        currentNumber += digit;
+                        numberDisplay.setAttribute('value', currentNumber);
+                    }
+                });
+
+                vrPhoneContainer.appendChild(btn);
+
+                col++;
+                if (col >= 3) {
+                    col = 0;
+                    row++;
                 }
-            };
-            const closeBtn = document.createElement('button');
-            closeBtn.textContent = 'Sluiten';
-            closeBtn.className = 'phone-btn';
-            closeBtn.onclick = () => { phone.style.display = 'none'; };
-            controls.appendChild(clearBtn);
-            controls.appendChild(callBtn);
-            controls.appendChild(closeBtn);
-            phoneChoices.appendChild(controls);
+            });
+
+            // Call button
+            const callBtn = document.createElement('a-box');
+            callBtn.setAttribute('class', 'phone-btn-vr interactable');
+            callBtn.setAttribute('width', '0.35');
+            callBtn.setAttribute('height', '0.15');
+            callBtn.setAttribute('depth', '0.03');
+            callBtn.setAttribute('color', '#2ecc71');
+            callBtn.setAttribute('position', '-0.2 -0.82 0.03');
+
+            const callText = document.createElement('a-text');
+            callText.setAttribute('value', 'BELLEN');
+            callText.setAttribute('align', 'center');
+            callText.setAttribute('color', '#fff');
+            callText.setAttribute('position', '0 0 0.02');
+            callText.setAttribute('width', '0.5');
+            callBtn.appendChild(callText);
+
+            callBtn.addEventListener('click', () => {
+                if (currentNumber === '112') {
+                    screenText.setAttribute('value', '112: Verbonden!');
+                    setTimeout(() => {
+                        phoneVRStep2();
+                    }, 1000);
+                } else {
+                    screenText.setAttribute('value', 'Verkeerd nummer!');
+                    currentNumber = '';
+                    numberDisplay.setAttribute('value', '');
+                    setTimeout(() => {
+                        screenText.setAttribute('value', 'Toets 112');
+                    }, 1500);
+                }
+            });
+
+            vrPhoneContainer.appendChild(callBtn);
+
+            // Clear button
+            const clearBtn = document.createElement('a-box');
+            clearBtn.setAttribute('class', 'phone-btn-vr interactable');
+            clearBtn.setAttribute('width', '0.35');
+            clearBtn.setAttribute('height', '0.15');
+            clearBtn.setAttribute('depth', '0.03');
+            clearBtn.setAttribute('color', '#e74c3c');
+            clearBtn.setAttribute('position', '0.2 -0.82 0.03');
+
+            const clearText = document.createElement('a-text');
+            clearText.setAttribute('value', 'WISSEN');
+            clearText.setAttribute('align', 'center');
+            clearText.setAttribute('color', '#fff');
+            clearText.setAttribute('position', '0 0 0.02');
+            clearText.setAttribute('width', '0.5');
+            clearBtn.appendChild(clearText);
+
+            clearBtn.addEventListener('click', () => {
+                currentNumber = '';
+                numberDisplay.setAttribute('value', '');
+            });
+
+            vrPhoneContainer.appendChild(clearBtn);
+
+            scene.appendChild(vrPhoneContainer);
+        }
+
+        // VR telefoon stap 2
+        function phoneVRStep2() {
+            const vrPhoneText = document.getElementById('vrPhoneText');
+            const vrPhone = document.getElementById('vrPhone');
+
+            if (!vrPhone) return;
+
+            // Verwijder keypad
+            const buttons = vrPhone.querySelectorAll('.phone-btn-vr');
+            buttons.forEach(btn => btn.parentNode.removeChild(btn));
+
+            vrPhoneText.setAttribute('value', '112: Zijn er gewonden?');
+
+            // Yes button
+            const yesBtn = document.createElement('a-box');
+            yesBtn.setAttribute('class', 'phone-btn-vr interactable');
+            yesBtn.setAttribute('width', '0.7');
+            yesBtn.setAttribute('height', '0.2');
+            yesBtn.setAttribute('depth', '0.03');
+            yesBtn.setAttribute('color', '#27ae60');
+            yesBtn.setAttribute('position', '0 -0.3 0.03');
+
+            const yesText = document.createElement('a-text');
+            yesText.setAttribute('value', 'Ja, 1 gewonde');
+            yesText.setAttribute('align', 'center');
+            yesText.setAttribute('color', '#fff');
+            yesText.setAttribute('position', '0 0 0.02');
+            yesText.setAttribute('width', '1');
+            yesBtn.appendChild(yesText);
+
+            yesBtn.addEventListener('click', () => {
+                vrPhoneText.setAttribute('value', 'Ambulance onderweg!');
+                setTimeout(() => {
+                    if (vrPhone.parentNode) vrPhone.parentNode.removeChild(vrPhone);
+                    startAmbulanceRun();
+                    setTimeout(() => nextStep(), 50);
+                }, 1500);
+            });
+
+            vrPhone.appendChild(yesBtn);
+
+            // No button
+            const noBtn = document.createElement('a-box');
+            noBtn.setAttribute('class', 'phone-btn-vr interactable');
+            noBtn.setAttribute('width', '0.7');
+            noBtn.setAttribute('height', '0.2');
+            noBtn.setAttribute('depth', '0.03');
+            noBtn.setAttribute('color', '#c0392b');
+            noBtn.setAttribute('position', '0 -0.6 0.03');
+
+            const noText = document.createElement('a-text');
+            noText.setAttribute('value', 'Nee, alleen schade');
+            noText.setAttribute('align', 'center');
+            noText.setAttribute('color', '#fff');
+            noText.setAttribute('position', '0 0 0.02');
+            noText.setAttribute('width', '1');
+            noBtn.appendChild(noText);
+
+            noBtn.addEventListener('click', () => {
+                vrPhoneText.setAttribute('value', 'Fout! Opnieuw...');
+                setTimeout(() => {
+                    if (vrPhone.parentNode) vrPhone.parentNode.removeChild(vrPhone);
+                    reset();
+                }, 1500);
+            });
+
+            vrPhone.appendChild(noBtn);
         }
 
         function phoneStep2() {
@@ -1003,11 +1602,18 @@ adb devices<!doctype html>
             ambulanceEnRoute = false; ambulanceArriving = false;
             wound.setAttribute('visible', true); wound.setAttribute('color', '#c0392b'); wound.setAttribute('position', '0 0.95 0.22');
             panel.style.display = 'none'; phone.style.display = 'none';
+
+            // Clean up VR UI elements
+            const vrPanel = document.getElementById('vrPanel');
+            if (vrPanel && vrPanel.parentNode) vrPanel.parentNode.removeChild(vrPanel);
+            const vrPhone = document.getElementById('vrPhone');
+            if (vrPhone && vrPhone.parentNode) vrPhone.parentNode.removeChild(vrPhone);
+
             // reset gaze targets and flags -> zichtbaar in begin
             lookedLeft = false; lookedRight = false;
-            lookLeft.setAttribute('visible', true); lookLeft.setAttribute('color', '#ffd166'); lookLeft.setAttribute('scale', '1 1 1'); lookLeft.setAttribute('position', '-1.2 1.6 6');
-            lookRight.setAttribute('visible', true); lookRight.setAttribute('color', '#ffd166'); lookRight.setAttribute('scale', '1 1 1'); lookRight.setAttribute('position', '1.2 1.6 6');
-            document.getElementById('lookHint').setAttribute('visible', true); document.getElementById('lookHint').setAttribute('position', '0 2 6');
+            lookLeft.setAttribute('visible', true); lookLeft.setAttribute('color', '#ffd166'); lookLeft.setAttribute('scale', '1 1 1'); lookLeft.setAttribute('position', '-1.2 1.6 5.6');
+            lookRight.setAttribute('visible', true); lookRight.setAttribute('color', '#ffd166'); lookRight.setAttribute('scale', '1 1 1'); lookRight.setAttribute('position', '1.2 1.6 5.6');
+            document.getElementById('lookHint').setAttribute('visible', true); document.getElementById('lookHint').setAttribute('position', '0 2 5.6');
             // reset EHBO items positions and parent (naast ehbo)
             const scene = document.querySelector('a-scene');
             spray.setAttribute('position', '0.4 0.2 1.4'); spray.setAttribute('rotation', '0 0 0'); spray.setAttribute('scale', '1 1 1'); scene.appendChild(spray);
@@ -1021,7 +1627,7 @@ adb devices<!doctype html>
             medic1.setAttribute('position', '0.6 0 25'); medic2.setAttribute('position', '-0.6 0 25');
             person.setAttribute('visible', true); person.setAttribute('position', '0 0 0');
             // start crash sequence
-            showPanel('<strong>Klaar?</strong><br><br>Het scenario start. Volg de instructies.', [{ text: 'Start', good: true, action: () => { panel.style.display = 'none'; startCrash(); } }]);
+            showPanel('<strong>Klaar?</strong><br><br>Het scenario start. Volg de instructies.', [{ text: 'Start', good: true, action: () => { panel.style.display = 'none'; const vrPanel = document.getElementById('vrPanel'); if (vrPanel && vrPanel.parentNode) vrPanel.parentNode.removeChild(vrPanel); startCrash(); } }]);
         }
 
         // 'Lees vraag' knop toont huidge panel (of opent huidige stap info)
