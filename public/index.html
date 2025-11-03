@@ -1577,11 +1577,30 @@ adb devices
             lookLeft.setAttribute('visible', true); lookLeft.setAttribute('color', '#ffd166'); lookLeft.setAttribute('scale', '1 1 1'); lookLeft.setAttribute('position', '-1.2 1.6 6');
             lookRight.setAttribute('visible', true); lookRight.setAttribute('color', '#ffd166'); lookRight.setAttribute('scale', '1 1 1'); lookRight.setAttribute('position', '1.2 1.6 6');
             document.getElementById('lookHint').setAttribute('visible', true); document.getElementById('lookHint').setAttribute('position', '0 2 6');
-            // reset EHBO items positions and parent (naast ehbo)
+            // reset EHBO items positions and parent (naast ehbo) - ensure safe reparenting
             const scene = document.querySelector('a-scene');
-            spray.setAttribute('position', '0.4 0.2 1.4'); spray.setAttribute('rotation', '0 0 0'); spray.setAttribute('scale', '1 1 1'); scene.appendChild(spray);
-            plaster.setAttribute('position', '1.2 0.04 1.4'); plaster.setAttribute('rotation', '0 0 0'); plaster.setAttribute('scale', '1 1 1'); scene.appendChild(plaster);
-            towel.setAttribute('position', '0.8 0.14 1.2'); towel.setAttribute('rotation', '0 0 0'); towel.setAttribute('scale', '1 1 1'); scene.appendChild(towel);
+            // Safely reparent items: remove from DOM, then add back to scene
+            try {
+                if (spray.parentNode) spray.parentNode.removeChild(spray);
+                scene.appendChild(spray);
+                spray.setAttribute('position', '0.4 0.2 1.4'); 
+                spray.setAttribute('rotation', '0 0 0'); 
+                spray.setAttribute('scale', '1 1 1');
+            } catch (e) { console.warn('Error resetting spray:', e); }
+            try {
+                if (plaster.parentNode) plaster.parentNode.removeChild(plaster);
+                scene.appendChild(plaster);
+                plaster.setAttribute('position', '1.2 0.04 1.4'); 
+                plaster.setAttribute('rotation', '0 0 0'); 
+                plaster.setAttribute('scale', '1 1 1');
+            } catch (e) { console.warn('Error resetting plaster:', e); }
+            try {
+                if (towel.parentNode) towel.parentNode.removeChild(towel);
+                scene.appendChild(towel);
+                towel.setAttribute('position', '0.8 0.14 1.2'); 
+                towel.setAttribute('rotation', '0 0 0'); 
+                towel.setAttribute('scale', '1 1 1');
+            } catch (e) { console.warn('Error resetting towel:', e); }
             spray.setAttribute('visible', false); plaster.setAttribute('visible', false);
             sprayLabel.setAttribute('visible', false); plasterLabel.setAttribute('visible', false);
             towel.setAttribute('visible', false); towelLabel.setAttribute('visible', false);
