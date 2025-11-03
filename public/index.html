@@ -535,6 +535,16 @@ adb devices
             if (rightHand && !rightHand.hasAttribute('vr-interactor')) {
                 rightHand.setAttribute('vr-interactor', '');
             }
+            // Zorg dat de start panel in VR zichtbaar is als we nog in stap 0 zitten
+            const existingVRPanel = document.getElementById('vrPanel');
+            if (step === 0) {
+                // verberg 2D overlay indien zichtbaar
+                panel.style.display = 'none';
+                // toon VR start panel
+                showPanel('<strong>Klaar?</strong><br><br>Het scenario start. Volg de instructies.', [
+                    { text: 'Start', good: true, action: () => { panel.style.display = 'none'; const vrPanel = document.getElementById('vrPanel'); if (vrPanel && vrPanel.parentNode) vrPanel.parentNode.removeChild(vrPanel); startCrash(); } }
+                ]);
+            }
         });
 
         sceneEl.addEventListener('exit-vr', () => {
