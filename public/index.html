@@ -671,8 +671,8 @@ adb devices
                         try {
                             // reparent to camera (camera is inside cameraRig)
                             const scene = document.querySelector('a-scene');
-                            // remove from current parent (if possible)
-                            if (el.object3D && el.object3D.parent) el.object3D.parent.removeChild(el.object3D);
+                            // remove from current parent (if possible) - use THREE.Object3D.remove(child)
+                            if (el.object3D && el.object3D.parent) el.object3D.parent.remove(el.object3D);
                             const cam = document.querySelector('[camera]').parentEl;
                             cam.appendChild(el);
                             el.setAttribute('position', '0 -0.12 -0.6');
