@@ -347,6 +347,9 @@ adb devices
             <a-box width="0.6" height="0.05" depth="0.4" color="#2c3e50" position="0 0.75 0"></a-box>
             <!-- visible wound (houd id 'wound') -->
             <a-sphere id="wound" radius="0.12" color="#c0392b" position="0 0.95 0.22"></a-sphere>
+            <!-- onzichtbaar (bijna transparant) groter hit-vlak voor VR interactie -->
+            <a-plane id="woundTarget" class="interactable" color="#ffffff" opacity="0.001" material="transparent: true"
+                     width="0.6" height="0.6" position="0 0.95 0.23"></a-plane>
         </a-entity>
 
         <!-- EHBO-kist naast slachtoffer -->
@@ -573,9 +576,9 @@ adb devices
             // Check altijd of we in VR mode zijn (voor zekerheid)
             const sceneEl = document.querySelector('a-scene');
             const actuallyInVR = sceneEl && sceneEl.is('vr-mode');
-            
+
             console.log('showPanel called. inVRMode:', inVRMode, 'actuallyInVR:', actuallyInVR);
-            
+
             if (actuallyInVR || inVRMode) {
                 // VR mode: creëer 3D panel in de wereld
                 console.log('Creating VR panel');
@@ -607,7 +610,7 @@ adb devices
 
             const vrPanel = document.createElement('a-entity');
             vrPanel.setAttribute('id', 'vrPanel');
-            
+
             // Hang het panel aan de camera (head) zodat het altijd in beeld is
             // en 1.8 meter voor de gebruiker zweeft op ooghoogte
             vrPanel.setAttribute('position', '0 0 -1.8');
@@ -859,7 +862,7 @@ adb devices
             schema: { id: { type: 'string' } },
             init: function () {
                 const el = this.el;
-                
+
                 const handleInteraction = () => {
                     // Alleen actief in stap 1
                     if (step !== 1) return;
@@ -885,7 +888,7 @@ adb devices
 
                 // Click event voor trigger
                 el.addEventListener('click', handleInteraction);
-                
+
                 // Hover effecten voor visuele feedback
                 el.addEventListener('raycaster-intersected', (evt) => {
                     if (step === 1) {
@@ -896,7 +899,7 @@ adb devices
                         }
                     }
                 });
-                
+
                 el.addEventListener('raycaster-intersected-cleared', (evt) => {
                     if (step === 1) {
                         const id = this.data.id;
@@ -909,7 +912,7 @@ adb devices
             }
         });
 
-        // Glow-component voor interactables
+        // Glow-component voor interactables (duidelijker in VR)
         AFRAME.registerComponent('glow', {
             schema: { active: { type: 'boolean', default: false } },
             init: function () {
@@ -917,19 +920,26 @@ adb devices
             },
             update: function () {
                 if (this.data.active) {
-                    // pulse scale & color
-                    this.el.setAttribute('animation__pulse', 'property: scale; dir: alternate; dur: 800; to: 1.12 1.12 1.12; loop: true');
-                    this.el.setAttribute('animation__color', 'property: color; dir: alternate; dur: 800; to: #ffffff; loop: true');
+                    // krachtigere pulse in VR + emissive gloed
+                    this.el.setAttribute('animation__pulse', 'property: scale; dir: alternate; dur: 700; from: 1 1 1; to: 1.25 1.25 1.25; loop: true');
+                    this.el.setAttribute('animation__color', 'property: color; dir: alternate; dur: 700; from: #ffffff; to: #fef08a; loop: true');
+                    // emissive highlight voor meer contrast in headset
+                    this.el.setAttribute('material', 'emissive: #ffffff; emissiveIntensity: 0.5');
+                    this.el.setAttribute('animation__em', 'property: material.emissiveIntensity; dir: alternate; dur: 700; from: 0.2; to: 1.0; loop: true');
                 } else {
                     this.el.removeAttribute('animation__pulse');
                     this.el.removeAttribute('animation__color');
+                    this.el.removeAttribute('animation__em');
+                    // reset material emissive om kleur te herstellen
+                    const mat = this.el.getAttribute('material') || {};
+                    this.el.setAttribute('material', Object.assign({}, mat, { emissive: '#000', emissiveIntensity: 0 }));
                     this.el.setAttribute('scale', '1 1 1');
                 }
             }
         });
 
-        // Pick-up / hold met VR controller triggers
-        AFRAME.registerComponent('pickable', {
+    // Pick-up / hold met VR controller triggers
+    AFRAME.registerComponent('pickable', {
             init: function () {
                 const el = this.el;
                 function tryPickup() {
@@ -994,8 +1004,8 @@ adb devices
             }
         });
 
-        // klik op slachtoffer om gebruikt item toe te passen (negeer klikken vóór EHBO-stap / geen 'niets vast' melding)
-        person.addEventListener('click', () => {
+        // gedeelde logica voor EHBO-actie op slachtoffer/wond
+        function applyHeldItem() {
             if (step < 4) return; // stil genegeerd zolang EHBO nog niet beschikbaar is
             if (!heldItem) return; // geen feedback tonen wanneer niets vast
 
@@ -1062,7 +1072,12 @@ adb devices
                     showFeedback('Pleister al aangebracht.', true);
                 }
             }
-        });
+        }
+
+        // klik op slachtoffer of wond-target om gebruikt item toe te passen
+        person.addEventListener('click', applyHeldItem);
+        document.getElementById('wound').addEventListener('click', applyHeldItem);
+        document.getElementById('woundTarget').addEventListener('click', applyHeldItem);
 
         function dropItem(id, pos) {
             const item = document.getElementById(id);
