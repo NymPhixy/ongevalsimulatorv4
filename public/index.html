@@ -1046,6 +1046,28 @@ adb devices
             }
             else if (step === 4) {
                 // EHBO stap: items zichtbaar nadat 112 is gestart (en ambulance en route)
+                // Maak items DIRECT zichtbaar in VR (in browser toon eerst panel)
+                if (isInVR) {
+                    ehbo.setAttribute('visible', true);
+                    spray.setAttribute('visible', true);
+                    plaster.setAttribute('visible', true);
+                    towel.setAttribute('visible', true);
+                    sprayLabel.setAttribute('visible', true);
+                    plasterLabel.setAttribute('visible', true);
+                    towelLabel.setAttribute('visible', true);
+                    spray.setAttribute('pickable', '');
+                    plaster.setAttribute('pickable', '');
+                    towel.setAttribute('pickable', '');
+                    spray.setAttribute('gaze-select', '');
+                    plaster.setAttribute('gaze-select', '');
+                    towel.setAttribute('gaze-select', '');
+                    ambulanceEnRoute = true;
+                    towel.setAttribute('glow', { active: true });
+                    spray.setAttribute('glow', { active: false });
+                    plaster.setAttribute('glow', { active: false });
+                    updateGlows();
+                }
+                // Show panel (either VR or browser)
                 showPanel(
                     '<strong>🧰 Stap 4 – EHBO: pak spray en pleister</strong><br><br>' +
                     'Situatie:\nEr ligt een EHBO-doos naast het slachtoffer met een spraybus en pleister. Klik op de spullen om ze te pakken en behandel de wond terwijl de hulp onderweg is.',
@@ -1053,7 +1075,7 @@ adb devices
                         {
                             text: 'Ga naar de EHBO spullen', good: true, action: () => {
                                 panel.style.display = 'none';
-                                // zet EHBO-kist en items zichtbaar bij slachtoffer
+                                // zet EHBO-kist en items zichtbaar bij slachtoffer (FOR BROWSER)
                                 ehbo.setAttribute('visible', true);
                                 spray.setAttribute('visible', true);
                                 plaster.setAttribute('visible', true);
