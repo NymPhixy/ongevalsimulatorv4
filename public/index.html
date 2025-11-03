@@ -174,7 +174,7 @@ adb devices
 
     <a-scene collision-check background="color: #aed9ff">
         <!-- Camera rig with Quest 1 movement and controller support -->
-        <a-entity id="cameraRig" position="0 0 6">
+        <a-entity id="cameraRig" position="0 0 6" wasd-controls="acceleration: 65">
             <a-entity camera look-controls position="0 1.6 0">
                 <!-- Cursor uses a 3s fuse to avoid accidental selections in VR -->
                 <!-- Added id so we can attach a visual progress ring for gaze feedback -->
