@@ -1,0 +1,17 @@
+# Netlify Build Configuration
+[build]
+  # Publish directory (waar de gebouwde bestanden staan na 'npm run build')
+  publish = "dist"
+  
+  # Build command
+  command = "npm run build"
+
+# Node versie voor Netlify
+[build.environment]
+  NODE_VERSION = "20"
+
+# Redirect rules voor SPA
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
