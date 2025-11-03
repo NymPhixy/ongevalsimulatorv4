@@ -585,7 +585,8 @@ adb devices
                         lookLeft.setAttribute('visible', false);
                         lookRight.setAttribute('visible', false);
                         document.getElementById('lookHint').setAttribute('visible', false);
-                        nextStep();
+                        // Vertraging zodat gebruiker goed kan registreren dat balletjes compleet zijn
+                        setTimeout(() => nextStep(), 800);
                     }
                 };
                 // Beide gaze en click ondersteunen
@@ -759,8 +760,8 @@ adb devices
                             ehbo.removeAttribute('animation__close');
                             // trigger ambulance arrival (medics stappen uit en nemen de persoon mee)
                             triggerAmbulanceArrival();
-                            // ga door naar de volgende stap (ambulance / vervolg)
-                            setTimeout(() => nextStep(), 50);
+                            // ga door naar de volgende stap LATER, niet onmiddellijk
+                            // (ambulanceArrivedSequence roept zelf nextStep() aan aan het einde)
                         }, 900);
                     });
                 } else {
@@ -887,14 +888,36 @@ adb devices
                 const rig = document.getElementById('cameraRig');
                 if (!rig) return;
 
-                // Get thumbstick axes (left thumbstick on Quest controllers)
-                const gamepad = el.components['oculus-touch-controls'] &&
-                    el.components['oculus-touch-controls'].controller;
-
-                if (!gamepad || !gamepad.axes) return;
-
-                const x = gamepad.axes[0]; // left/right (-1 to 1)
-                const z = gamepad.axes[1]; // forward/backward (-1 to 1, negative = forward)
+                // Probeer thumbstick axes te krijgen via verschillende methodes
+                let x = 0, z = 0;
+                
+                // Methode 1: via oculus-touch-controls component
+                if (el.components && el.components['oculus-touch-controls']) {
+                    const touchComp = el.components['oculus-touch-controls'];
+                    if (touchComp.controller && touchComp.controller.axes) {
+                        x = touchComp.controller.axes[0] || 0;
+                        z = touchComp.controller.axes[1] || 0;
+                    }
+                }
+                
+                // Methode 2: via directe gamepad API
+                if (Math.abs(x) < 0.01 && Math.abs(z) < 0.01) {
+                    const gamepads = navigator.getGamepads();
+                    if (gamepads) {
+                        // Quest left controller is meestal index 0
+                        for (let i = 0; i < gamepads.length; i++) {
+                            const gp = gamepads[i];
+                            if (gp && gp.mapping === 'xr-standard') {
+                                // Left thumbstick is axes 2 en 3 in xr-standard
+                                if (gp.axes[2] !== undefined && gp.axes[3] !== undefined) {
+                                    x = gp.axes[2];
+                                    z = gp.axes[3];
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
 
                 // Deadzone to prevent drift
                 const deadzone = 0.15;
@@ -993,7 +1016,7 @@ adb devices
                         { text: 'C. Je roept in paniek om hulp', correct: false, feedback: 'Paniek helpt niet; blijf rustig en controleer aanspreekbaarheid.' }
                     ]
                 );
-                if (isInVR) showVrTip('Tip: Kijk 3 seconden naar het juiste antwoord om te kiezen.');
+                if (isInVR) showVrTip('Tip: Wijs naar het antwoord met je controller en druk trigger!');
             }
             else if (step === 3) {
                 showQuestion(
@@ -1005,7 +1028,7 @@ adb devices
                         { text: 'C. Je zoekt iemand anders die misschien wil bellen', correct: false, feedback: 'Je kunt iemand vragen, maar jij bent aanwezig — bel direct.' }
                     ]
                 );
-                if (isInVR) showVrTip('Tip: Open de telefoon en kijk 3s naar de toetsen om 112 in te toetsen.');
+                if (isInVR) showVrTip('Tip: Zeg in een microfoon welk antwoord correct is, of gebruik controller!');
             }
             else if (step === 4) {
                 // EHBO stap: items zichtbaar nadat 112 is gestart (en ambulance en route)
@@ -1058,19 +1081,12 @@ adb devices
             else if (step === 5) {
                 // ambulance is onderweg (maar full arrival waits until pleister)
                 showPanel(
-                    '<strong>🚑 Ambulance onderweg</strong><br><br>' +
-                    'De ambulance is onderweg. Je hebt nu tijd om de wond te behandelen: pak de spray en daarna de pleister.',
+                    '<strong>🚑 Ambulance onderweg...</strong><br><br>' +
+                    'De hulpverleners zijn onderweg. Je hebt goed gereageerd! Wacht op hun aankomst en zorg dat je bij het slachtoffer blijft.',
                     [
                         {
-                            text: 'Ik ga behandelen', good: true, action: () => {
+                            text: 'Ik blijf bij het slachtoffer', good: true, action: () => {
                                 panel.style.display = 'none';
-                                // laat items gloeien (beschikbaar) als ambulanceEnRoute true
-                                updateGlows();
-                            }
-                        },
-                        {
-                            text: 'Ik blijf alleen bij slachtoffer', good: false, action: () => {
-                                showFeedback('❌ Niet optimaal. Gebruik beschikbare middelen om tijdelijke zorg te bieden terwijl je wacht.', false);
                             }
                         }
                     ]
@@ -1256,20 +1272,21 @@ adb devices
             btnContainer.innerHTML = '';
             options.forEach((opt, idx) => {
                 const btn = document.createElement('a-plane');
-                btn.setAttribute('width', '0.65');
-                btn.setAttribute('height', '0.15');
-                btn.setAttribute('color', opt.good ? '#2f80ed' : '#bdc3c7');
+                btn.setAttribute('width', '0.75');
+                btn.setAttribute('height', '0.18');
+                btn.setAttribute('color', opt.good ? '#2f80ed' : '#3a3f4a');
                 btn.setAttribute('class', 'interactable');
-                const x = (idx - (options.length - 1) / 2) * 0.7;
+                const x = (idx - (options.length - 1) / 2) * 0.85;
                 btn.setAttribute('position', `${x} 0 0`);
-                btn.setAttribute('gaze-select', '');
+                // GEEN gaze-select op vragen - alleen controller select
                 const t = document.createElement('a-text');
                 t.setAttribute('value', opt.text);
                 t.setAttribute('align', 'center');
-                t.setAttribute('color', '#000');
+                t.setAttribute('color', '#ffffff');
                 t.setAttribute('position', '0 0 0.02');
-                t.setAttribute('width', '0.6');
-                t.setAttribute('scale', '0.8 0.8 0.8');
+                t.setAttribute('width', '0.7');
+                t.setAttribute('scale', '1.2 1.2 1.2');
+                t.setAttribute('font-size', '64');
                 btn.appendChild(t);
                 btn.addEventListener('gaze-confirm', () => { hideVrPanel(); opt.action && opt.action(); });
                 btn.addEventListener('click', () => { hideVrPanel(); opt.action && opt.action(); });
@@ -1570,7 +1587,8 @@ adb devices
                         ambulance.setAttribute('animation__away', 'property: position; to: 0 0 40; dur: 4000; easing: linear');
                         setTimeout(() => {
                             // einde van sequentie -> volgende stap (afsluitende fase)
-                            nextStep();
+                            // voeg vertraging toe zodat stap 5 goed zichtbaar is
+                            setTimeout(() => nextStep(), 2000);
                         }, 4000);
                     }, 2100);
                 }, 700);
