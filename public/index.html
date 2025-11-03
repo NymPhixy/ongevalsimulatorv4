@@ -588,9 +588,6 @@ adb devices
                         lookLeft.setAttribute('visible', false);
                         lookRight.setAttribute('visible', false);
                         document.getElementById('lookHint').setAttribute('visible', false);
-                        // Verwijder het gaze-trigger component zodat balletjes niet meer klikable zijn
-                        lookLeft.removeAttribute('gaze-trigger');
-                        lookRight.removeAttribute('gaze-trigger');
                         // Vertraging zodat gebruiker goed kan registreren dat balletjes compleet zijn
                         setTimeout(() => nextStep(), 800);
                     }
@@ -1667,13 +1664,14 @@ adb devices
             wound.setAttribute('visible', true); wound.setAttribute('color', '#c0392b'); wound.setAttribute('position', '0 0.95 0.22');
             wound.setAttribute('scale', '1 1 1');
             panel.style.display = 'none'; phone.style.display = 'none';
-            // reset gaze targets and flags -> zichtbaar in begin
+            // reset gaze targets and flags
             lookedLeft = false; lookedRight = false;
-            lookLeft.setAttribute('visible', true); lookLeft.setAttribute('color', '#ffd166'); lookLeft.setAttribute('scale', '1 1 1'); lookLeft.setAttribute('position', '-1.2 1.6 6');
-            lookRight.setAttribute('visible', true); lookRight.setAttribute('color', '#ffd166'); lookRight.setAttribute('scale', '1 1 1'); lookRight.setAttribute('position', '1.2 1.6 6');
-            // Verwijder gaze-trigger component voordat reset() eindigt zodat balletjes NOG NIET klikable zijn
-            lookLeft.removeAttribute('gaze-trigger');
-            lookRight.removeAttribute('gaze-trigger');
+            lookLeft.setAttribute('color', '#ffd166'); lookLeft.setAttribute('scale', '1 1 1'); lookLeft.setAttribute('position', '-1.2 1.6 6');
+            lookRight.setAttribute('color', '#ffd166'); lookRight.setAttribute('scale', '1 1 1'); lookRight.setAttribute('position', '1.2 1.6 6');
+            // KEEP HIDDEN UNTIL STEP 1 - they only show after user clicks "Ik begrijp het"
+            lookLeft.setAttribute('visible', false);
+            lookRight.setAttribute('visible', false);
+            // KEEP gaze-trigger component - balletjes moeten altijd klikable zijn (ze zijn alleen visueel hidden tot nodig)
             document.getElementById('lookHint').setAttribute('visible', true); document.getElementById('lookHint').setAttribute('position', '0 2 6');
             // reset EHBO items positions and parent (naast ehbo)
             const scene = document.querySelector('a-scene');
@@ -1714,8 +1712,10 @@ adb devices
 
         resetBtn.onclick = reset;
 
-        // INIT: balletjes krijgen gaze-trigger component NIET hier
-        // (ze worden pas interactief gemaakt in stap 1 action, niet eerder!)
+        // INIT: balletjes krijgen gaze-trigger component HIER
+        // Ze worden geklikt via controller raycast, dus ze moeten het component altijd hebben
+        lookLeft.setAttribute('gaze-trigger', { id: 'left' });
+        lookRight.setAttribute('gaze-trigger', { id: 'right' });
         // spray/plaster blijven onzichtbaar en niet-pickable tot stap 4
         // begin
         reset();
