@@ -564,24 +564,28 @@ adb devices
             car.setAttribute('animation__drive', `property: position; from: ${fromStr}; to: 0 0 -0.6; dur: 3800; easing: linear`);
         }
 
-        // Gaze-trigger reageert op click en op onze custom 'gaze-confirm' (3s fuse)
-        // Werkt nu ALLEEN op balletjes (lookLeft, lookRight)
+        // Gaze-trigger reageert op custom 'gaze-confirm' event (3s fuse via gaze-select)
+        // Werkt op balletjes (lookLeft, lookRight)
         AFRAME.registerComponent('gaze-trigger', {
             schema: { id: { type: 'string' } },
             init: function () {
                 const el = this.el;
                 const handle = () => {
+                    console.log(`DEBUG: gaze-trigger fired for ${this.data.id}`);
                     const id = this.data.id;
                     if (id === 'left') {
                         lookedLeft = true;
                         el.setAttribute('color', '#9ae6b4');
                         el.setAttribute('scale', '1.3 1.3 1.3');
+                        console.log(`DEBUG: lookedLeft=true, lookedRight=${lookedRight}`);
                     } else {
                         lookedRight = true;
                         el.setAttribute('color', '#9ae6b4');
                         el.setAttribute('scale', '1.3 1.3 1.3');
+                        console.log(`DEBUG: lookedRight=true, lookedLeft=${lookedLeft}`);
                     }
                     if (lookedLeft && lookedRight) {
+                        console.log(`DEBUG: Both balls looked at! Calling nextStep()`);
                         lookLeft.setAttribute('visible', false);
                         lookRight.setAttribute('visible', false);
                         document.getElementById('lookHint').setAttribute('visible', false);
@@ -589,7 +593,7 @@ adb devices
                         setTimeout(() => nextStep(), 800);
                     }
                 };
-                // ONLY gaze-confirm - prevent double triggering!
+                // gaze-confirm emitted by gaze-select after 3 seconds
                 el.addEventListener('gaze-confirm', handle);
             }
         });
@@ -985,14 +989,31 @@ adb devices
 
         function nextStep() {
             step++;
+            console.log(`DEBUG: nextStep() called, step=${step}, isInVR=${isInVR}`);
             // Teleport player ONLY in VR mode - in browser use AWSD movement
             const rig = document.getElementById('cameraRig');
             if (isInVR && rig) {
-                if (step === 1) rig.setAttribute('position', '0 0 6');  // Far from victim, safe area
-                else if (step === 2) rig.setAttribute('position', '0 0 1');  // Closer to victim
-                else if (step === 3) rig.setAttribute('position', '0 0 1');  // Still near victim for 112 call
-                else if (step === 4) rig.setAttribute('position', '-2 0 -1');  // In front of ambulance, can see victim and EHBO supplies
-                // After plaster applied: teleport to sidewalk to avoid ambulance (done in ambulanceArrivedSequence)
+                console.log(`DEBUG: Teleporting in VR mode`);
+                if (step === 1) {
+                    rig.setAttribute('position', '0 0 6');
+                    console.log(`DEBUG: Stap 1 - position set to 0 0 6`);
+                }
+                else if (step === 2) {
+                    rig.setAttribute('position', '0 0 1');
+                    console.log(`DEBUG: Stap 2 - position set to 0 0 1`);
+                }
+                else if (step === 3) {
+                    rig.setAttribute('position', '0 0 1');
+                    console.log(`DEBUG: Stap 3 - position set to 0 0 1`);
+                }
+                else if (step === 4) {
+                    rig.setAttribute('position', '-2 0 -1');
+                    console.log(`DEBUG: Stap 4 - position set to -2 0 -1`);
+                }
+            } else if (!isInVR) {
+                console.log(`DEBUG: Browser mode - no teleport`);
+            } else if (!rig) {
+                console.log(`DEBUG: ERROR - cameraRig not found`);
             }
             // Zorg dat de 'Lees vraag' knop altijd de huidige vraag toont
             if (step === 1) {
@@ -1005,9 +1026,16 @@ adb devices
                         {
                             text: 'Ik begrijp het', good: true, action: () => {
                                 panel.style.display = 'none';
+                                // Reset the gaze flags BEFORE enabling the balls
+                                lookedLeft = false;
+                                lookedRight = false;
+                                console.log(`DEBUG: Stap 1 - Reset gaze flags, showing balls`);
                                 // show gaze markers and enable components
                                 lookLeft.setAttribute('visible', true);
                                 lookRight.setAttribute('visible', true);
+                                // Add BOTH gaze-select (for 3s timer) AND gaze-trigger (to handle the confirm event)
+                                lookLeft.setAttribute('gaze-select', { fuseTime: 3000 });
+                                lookRight.setAttribute('gaze-select', { fuseTime: 3000 });
                                 lookLeft.setAttribute('gaze-trigger', { id: 'left' });
                                 lookRight.setAttribute('gaze-trigger', { id: 'right' });
                                 if (isInVR) showVrTip('Tip: Kijk naar de gele balletjes (3 sec) of gebruik controller trigger.\nLinker thumbstick = lopen!');
@@ -1324,12 +1352,19 @@ adb devices
                 t.setAttribute('scale', '1.2 1.2 1.2');
                 t.setAttribute('font-size', '64');
                 btn.appendChild(t);
+                // Add gaze-select for 3-second gaze confirmation (emits gaze-confirm event)
+                btn.setAttribute('gaze-select', { fuseTime: 3000 });
                 // Support both gaze-confirm (3s look) and controller trigger (click)
-                // Use a flag to prevent double-triggering
-                let btnClicked = false;
+                // Store clicked state on button element itself (not local var)
+                btn.dataset.clicked = 'false';
                 const btnAction = () => {
-                    if (btnClicked || !window.vrHud || window.vrHud.getAttribute('visible') !== 'true') return;
-                    btnClicked = true;
+                    // Check if already clicked or HUD not visible
+                    if (btn.dataset.clicked === 'true' || !window.vrHud || window.vrHud.getAttribute('visible') !== 'true') {
+                        console.log(`DEBUG: Button action BLOCKED - clicked=${btn.dataset.clicked}, hudExists=${!!window.vrHud}, visible=${window.vrHud?.getAttribute('visible')}`);
+                        return;
+                    }
+                    console.log(`DEBUG: Button action TRIGGERED - executing ${opt.text}`);
+                    btn.dataset.clicked = 'true';
                     hideVrPanel();
                     opt.action && opt.action();
                 };
