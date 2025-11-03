@@ -204,7 +204,7 @@ adb devices
     </div>
     <button id="reset" class="btn">Reset</button>
     <button id="readQuestion">Lees vraag</button>
-    
+
     <!-- VR Knop -->
     <button id="vrButton">
         <span>🥽</span>
@@ -352,7 +352,12 @@ adb devices
         <a-box id="ehbo" width="0.45" height="0.22" depth="0.3" color="#e74c3c" position="0.8 0 1.2"
             visible="false"></a-box>
 
-        <!-- Spray en Pleister (interactable met triggers) -->
+        <!-- Handdoek, Spray en Pleister (interactable met triggers) -->
+        <a-box id="towel" width="0.25" height="0.05" depth="0.18" color="#ecf0f1" position="-0.2 0.04 1.4"
+            class="interactable" visible="false"></a-box>
+        <a-text id="towelLabel" value="Handdoek" align="center" color="#111" position="-0.2 0.6 1.4" scale="0.6 0.6 0.6"
+            visible="false"></a-text>
+
         <a-cylinder id="spray" radius="0.12" height="0.4" color="#3498db" position="0.4 0.2 1.4" class="interactable"
             visible="false"></a-cylinder>
         <a-text id="sprayLabel" value="Spray" align="center" color="#fff" position="0.4 0.65 1.4" scale="0.6 0.6 0.6"
@@ -422,29 +427,33 @@ adb devices
                     if (!cameraRig || !camera) return;
 
                     // Haal thumbstick waarden op (-1 tot 1)
-                    const x = evt.detail.x;
-                    const y = evt.detail.y;
+                    const x = evt.detail.x;  // Links/rechts
+                    const y = evt.detail.y;  // Omhoog = vooruit, omlaag = achteruit
 
                     // Deadzone om drift te voorkomen
                     if (Math.abs(x) < 0.2 && Math.abs(y) < 0.2) return;
 
-                    // Snelheid van beweging
-                    const speed = 0.05;
+                    // Snelheid van beweging (iets sneller voor VR)
+                    const speed = 0.08;
 
                     // Haal camera rotatie voor forward/backward beweging
                     const rotation = camera.getAttribute('rotation');
-                    const radians = THREE.Math.degToRad(rotation.y);
+                    const radians = (rotation.y * Math.PI) / 180;
 
                     // Bereken beweging gebaseerd op kijkrichting
-                    const deltaX = -Math.sin(radians) * y * speed + Math.cos(radians) * x * speed;
-                    const deltaZ = -Math.cos(radians) * y * speed - Math.sin(radians) * x * speed;
+                    // y > 0 = thumbstick omhoog = vooruit
+                    // y < 0 = thumbstick omlaag = achteruit
+                    // x > 0 = thumbstick rechts = strafe rechts
+                    // x < 0 = thumbstick links = strafe links
+                    const deltaX = Math.sin(radians) * y * speed + Math.cos(radians) * x * speed;
+                    const deltaZ = Math.cos(radians) * y * speed - Math.sin(radians) * x * speed;
 
                     // Update positie
                     const currentPos = cameraRig.getAttribute('position');
                     cameraRig.setAttribute('position', {
                         x: currentPos.x + deltaX,
                         y: currentPos.y,
-                        z: currentPos.z + deltaZ
+                        z: currentPos.z - deltaZ
                     });
                 });
             }
@@ -489,8 +498,10 @@ adb devices
         const readQ = document.getElementById('readQuestion');
         const lookLeft = document.getElementById('lookLeft');
         const lookRight = document.getElementById('lookRight');
+        const towel = document.getElementById('towel');
         const spray = document.getElementById('spray');
         const plaster = document.getElementById('plaster');
+        const towelLabel = document.getElementById('towelLabel');
         const sprayLabel = document.getElementById('sprayLabel');
         const plasterLabel = document.getElementById('plasterLabel');
         const medic1 = document.getElementById('medic1');
@@ -502,11 +513,12 @@ adb devices
         let crashed = false;
         let carMoving = false;
         let ehboPicked = false;
-        let woundDisinfected = false;
-        let plasterApplied = false;
+        let woundDabbed = false;        // Handdoek gebruikt
+        let woundDisinfected = false;   // Spray gebruikt
+        let plasterApplied = false;     // Pleister gebruikt
         let lookedLeft = false;
         let lookedRight = false;
-        let heldItem = null; // 'spray' or 'plaster'
+        let heldItem = null; // 'towel', 'spray' or 'plaster'
         let ambulanceEnRoute = false;
         let ambulanceArriving = false;
         let inVRMode = false;
@@ -533,7 +545,7 @@ adb devices
         // VR Button click handler
         vrButton.addEventListener('click', () => {
             if (!sceneEl) return;
-            
+
             if (inVRMode) {
                 // Exit VR
                 sceneEl.exitVR();
@@ -812,6 +824,9 @@ adb devices
             init: function () {
                 const el = this.el;
                 const handleInteraction = () => {
+                    // Alleen actief in stap 1
+                    if (step !== 1) return;
+
                     const id = this.data.id;
                     if (id === 'left') {
                         lookedLeft = true;
@@ -822,7 +837,7 @@ adb devices
                         el.setAttribute('color', '#9ae6b4');
                         el.setAttribute('scale', '1.3 1.3 1.3');
                     }
-                    // als beide bekeken: verberg balletjes en ga verder
+                    // als beide bekeken: verberg balletjes en ga verder naar stap 2
                     if (lookedLeft && lookedRight) {
                         lookLeft.setAttribute('visible', false);
                         lookRight.setAttribute('visible', false);
@@ -834,10 +849,12 @@ adb devices
                 el.addEventListener('click', handleInteraction);
                 // Voor VR controller triggers
                 el.addEventListener('raycaster-intersected', (evt) => {
-                    el.setAttribute('scale', '1.15 1.15 1.15');
+                    if (step === 1) {
+                        el.setAttribute('scale', '1.15 1.15 1.15');
+                    }
                 });
                 el.addEventListener('raycaster-intersected-cleared', (evt) => {
-                    if (!lookedLeft && !lookedRight) {
+                    if (step === 1 && !lookedLeft && !lookedRight) {
                         el.setAttribute('scale', '1 1 1');
                     }
                 });
@@ -900,7 +917,8 @@ adb devices
                                 el.setAttribute('scale', '0.9 0.9 0.9');
                             }
 
-                            showFeedback('Je hebt de ' + (heldItem === 'spray' ? 'spraybus' : 'pleister') + ' gepakt. Gebruik het op het slachtoffer.', true, () => { });
+                            const itemName = heldItem === 'towel' ? 'handdoek' : (heldItem === 'spray' ? 'spraybus' : 'pleister');
+                            showFeedback('Je hebt de ' + itemName + ' gepakt. Gebruik het op het slachtoffer.', true, () => { });
                             // disable glow while held
                             el.components['glow'] && el.setAttribute('glow', { active: false });
                         } catch (e) {
@@ -932,23 +950,43 @@ adb devices
         person.addEventListener('click', () => {
             if (step < 4) return; // stil genegeerd zolang EHBO nog niet beschikbaar is
             if (!heldItem) return; // geen feedback tonen wanneer niets vast
-            if (heldItem === 'spray') {
+
+            // Volgorde: 1. Handdoek (deppen) -> 2. Spray (desinfecteren) -> 3. Pleister
+            if (heldItem === 'towel') {
+                if (!woundDabbed) {
+                    wound.setAttribute('color', '#c77979'); // Iets schoner
+                    woundDabbed = true;
+                    dropItem('towel', { x: -0.2, y: 0.04, z: 1.4 });
+                    heldItem = null;
+                    showFeedback('✅ Wond gedept met de handdoek.', true, () => {
+                        updateGlows();
+                    });
+                } else {
+                    showFeedback('De wond is al gedept.', true, () => { });
+                }
+            } else if (heldItem === 'spray') {
+                if (!woundDabbed) {
+                    showFeedback('❌ Eerst deppen! Gebruik eerst de handdoek om de wond schoon te deppen.', false);
+                    return;
+                }
                 if (!woundDisinfected) {
-                    wound.setAttribute('color', '#e67e22');
+                    wound.setAttribute('color', '#e67e22'); // Gedesinfecteerd
                     woundDisinfected = true;
-                    // drop the spray back to spawn
                     dropItem('spray', { x: 0.4, y: 0.2, z: 1.4 });
                     heldItem = null;
                     showFeedback('✅ Wond gedesinfecteerd met spray.', true, () => {
-                        // enable plaster glow now
                         updateGlows();
                     });
                 } else {
                     showFeedback('De wond is al gedesinfecteerd.', true, () => { });
                 }
             } else if (heldItem === 'plaster') {
+                if (!woundDabbed) {
+                    showFeedback('❌ Eerst de wond deppen met de handdoek!', false);
+                    return;
+                }
                 if (!woundDisinfected) {
-                    showFeedback('❌ Eerst desinfecteren! Gebruik eerst de spray.', false);
+                    showFeedback('❌ Eerst desinfecteren! Gebruik eerst de spray na het deppen.', false);
                     return;
                 }
                 if (!plasterApplied) {
@@ -959,6 +997,8 @@ adb devices
                     showFeedback('✅ Pleister aangebracht. De ambulance zal nu volledig arriveren.', true, () => {
                         // stop glow
                         plaster.setAttribute('glow', { active: false });
+                        towel.setAttribute('glow', { active: false });
+                        spray.setAttribute('glow', { active: false });
                         // verplaats EHBO-kist terug
                         ehbo.setAttribute('animation__close', 'property: position; to: 0.8 0 1.2; dur: 800; easing: easeInQuad');
                         setTimeout(() => {
@@ -991,10 +1031,14 @@ adb devices
         function updateGlows() {
             // items glow only when EHBO stage active and ambulance is en route
             const activeBase = (step >= 4 && ambulanceEnRoute);
-            spray.setAttribute('glow', { active: (activeBase && !woundDisinfected) });
-            plaster.setAttribute('glow', { active: (activeBase && woundDisinfected && !plasterApplied) });
+
+            // Volgorde: handdoek -> spray -> pleister
+            towel.setAttribute('glow', { active: (activeBase && !woundDabbed) });
+            spray.setAttribute('glow', { active: (activeBase && woundDabbed && !woundDisinfected) });
+            plaster.setAttribute('glow', { active: (activeBase && woundDabbed && woundDisinfected && !plasterApplied) });
+
             // highlight wound location in a distinct pulsing color while treatable
-            const woundActive = (step >= 4 && ambulanceEnRoute && !woundDisinfected);
+            const woundActive = (step >= 4 && ambulanceEnRoute && !woundDabbed);
             if (woundActive) {
                 // pulse scale + color to draw attention
                 wound.setAttribute('animation__pulse', 'property: scale; dir: alternate; dur: 700; to: 1.35 1.35 1.35; loop: true');
@@ -1083,21 +1127,28 @@ adb devices
             else if (step === 4) {
                 // EHBO stap: items zichtbaar nadat 112 is gestart (en ambulance en route)
                 showPanel(
-                    '<strong>🧰 Stap 4 – EHBO: pak spray en pleister</strong><br><br>' +
-                    'Situatie:\nEr ligt een EHBO-doos naast het slachtoffer met een spraybus en pleister. Klik op de spullen om ze te pakken en behandel de wond terwijl de hulp onderweg is.',
+                    '<strong>🧰 Stap 4 – EHBO: behandel de wond</strong><br><br>' +
+                    'Situatie:\nEr ligt een EHBO-doos naast het slachtoffer met een handdoek, spraybus en pleister. Klik op de spullen om ze te pakken en behandel de wond in de juiste volgorde terwijl de hulp onderweg is.<br><br>' +
+                    'Volgorde: 1. Handdoek (deppen) → 2. Spray (desinfecteren) → 3. Pleister',
                     [
                         {
                             text: 'Ga naar de EHBO spullen', good: true, action: () => {
                                 panel.style.display = 'none';
+                                const vrPanel = document.getElementById('vrPanel');
+                                if (vrPanel && vrPanel.parentNode) vrPanel.parentNode.removeChild(vrPanel);
                                 // zet EHBO-kist en items zichtbaar bij slachtoffer
                                 ehbo.setAttribute('visible', true);
+                                towel.setAttribute('visible', true);
                                 spray.setAttribute('visible', true);
                                 plaster.setAttribute('visible', true);
+                                towelLabel.setAttribute('visible', true);
                                 sprayLabel.setAttribute('visible', true);
                                 plasterLabel.setAttribute('visible', true);
                                 // maak items nu pas interactief en zet glow-standaard
+                                towel.setAttribute('pickable', '');
                                 spray.setAttribute('pickable', '');
                                 plaster.setAttribute('pickable', '');
+                                towel.setAttribute('glow', { active: false });
                                 spray.setAttribute('glow', { active: false });
                                 plaster.setAttribute('glow', { active: false });
                                 // pickable-component aanwezig; glow activeert zodra ambulanceEnRoute true
@@ -1598,7 +1649,7 @@ adb devices
             triangle.setAttribute('visible', false); triangle.removeAttribute('animation');
             ambulance.setAttribute('visible', false); ambulance.setAttribute('position', '0 0 25'); ambulance.removeAttribute('animation'); ambulance.removeAttribute('animation__away');
             ehbo.setAttribute('visible', false); ehbo.setAttribute('position', '0.8 0 1.2'); ehbo.removeAttribute('animation');
-            ehboPicked = false; woundDisinfected = false; plasterApplied = false;
+            ehboPicked = false; woundDabbed = false; woundDisinfected = false; plasterApplied = false;
             ambulanceEnRoute = false; ambulanceArriving = false;
             wound.setAttribute('visible', true); wound.setAttribute('color', '#c0392b'); wound.setAttribute('position', '0 0.95 0.22');
             panel.style.display = 'none'; phone.style.display = 'none';
@@ -1616,11 +1667,13 @@ adb devices
             document.getElementById('lookHint').setAttribute('visible', true); document.getElementById('lookHint').setAttribute('position', '0 2 5.6');
             // reset EHBO items positions and parent (naast ehbo)
             const scene = document.querySelector('a-scene');
+            towel.setAttribute('position', '-0.2 0.04 1.4'); towel.setAttribute('rotation', '0 0 0'); towel.setAttribute('scale', '1 1 1'); scene.appendChild(towel);
             spray.setAttribute('position', '0.4 0.2 1.4'); spray.setAttribute('rotation', '0 0 0'); spray.setAttribute('scale', '1 1 1'); scene.appendChild(spray);
             plaster.setAttribute('position', '1.2 0.04 1.4'); plaster.setAttribute('rotation', '0 0 0'); plaster.setAttribute('scale', '1 1 1'); scene.appendChild(plaster);
-            spray.setAttribute('visible', false); plaster.setAttribute('visible', false);
-            sprayLabel.setAttribute('visible', false); plasterLabel.setAttribute('visible', false);
-            spray.setAttribute('glow', { active: false }); plaster.setAttribute('glow', { active: false });
+            towel.setAttribute('visible', false); spray.setAttribute('visible', false); plaster.setAttribute('visible', false);
+            towelLabel.setAttribute('visible', false); sprayLabel.setAttribute('visible', false); plasterLabel.setAttribute('visible', false);
+            towel.setAttribute('glow', { active: false }); spray.setAttribute('glow', { active: false }); plaster.setAttribute('glow', { active: false });
+            towel.removeAttribute('pickable'); spray.removeAttribute('pickable'); plaster.removeAttribute('pickable');
             heldItem = null;
             // reset medics
             medic1.setAttribute('visible', false); medic2.setAttribute('visible', false);

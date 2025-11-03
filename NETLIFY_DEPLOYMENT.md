@@ -44,6 +44,7 @@ netlify deploy --prod
 ### 🔧 Build Configuratie
 
 **`netlify.toml` inhoud:**
+
 ```toml
 [build]
   publish = "dist"
@@ -82,19 +83,22 @@ Voor dit project zijn geen environment variables nodig.
 ### 🔍 Build Logs Bekijken
 
 Na deployment:
+
 - Ga naar Deploys → Latest deploy
 - Bekijk deploy logs voor troubleshooting
 
 ### ✨ Verwachte URL
 
 Na deployment krijg je een URL zoals:
+
 ```
 https://your-site-name.netlify.app
 ```
 
 ### 🎮 VR Functionaliteit op Netlify
 
-**Belangrijk:** 
+**Belangrijk:**
+
 - WebXR (VR) werkt alleen via HTTPS
 - Netlify biedt automatisch HTTPS ✅
 - Test VR functionaliteit op Quest 2 via de Netlify URL
@@ -102,16 +106,19 @@ https://your-site-name.netlify.app
 ### 🐛 Troubleshooting
 
 **Build faalt?**
+
 - Check of Node versie 20 wordt gebruikt (staat in build logs)
 - Controleer of alle dependencies geïnstalleerd zijn
 - Bekijk build logs voor specifieke errors
 
 **VR werkt niet?**
+
 - Zorg dat je HTTPS gebruikt (Netlify doet dit automatisch)
 - Test op een VR-compatibele browser
 - Check browser console voor WebXR errors
 
 **Site laadt niet correct?**
+
 - Controleer of redirect rules werken (`/*` → `/index.html`)
 - Bekijk Network tab in browser DevTools
 

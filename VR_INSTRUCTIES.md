@@ -34,6 +34,7 @@
 ### Quick Start - VR Knop:
 
 **De gemakkelijkste manier om VR te starten:**
+
 1. Open de applicatie in je browser (Quest Browser of Desktop)
 2. Klik op de **paarse "Start VR" knop** rechtsonder in het scherm
 3. De VR-modus start automatisch (je headset moet aangesloten zijn)
