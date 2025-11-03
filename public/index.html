@@ -564,14 +564,13 @@ adb devices
             car.setAttribute('animation__drive', `property: position; from: ${fromStr}; to: 0 0 -0.6; dur: 3800; easing: linear`);
         }
 
-        // Gaze-trigger reageert op custom 'gaze-confirm' event (3s fuse via gaze-select)
-        // Werkt op balletjes (lookLeft, lookRight)
+        // Gaze-trigger - now renamed to ball-trigger, responds to controller clicks
         AFRAME.registerComponent('gaze-trigger', {
             schema: { id: { type: 'string' } },
             init: function () {
                 const el = this.el;
                 const handle = () => {
-                    console.log(`DEBUG: gaze-trigger fired for ${this.data.id}`);
+                    console.log(`DEBUG: ball-trigger fired for ${this.data.id}`);
                     const id = this.data.id;
                     if (id === 'left') {
                         lookedLeft = true;
@@ -585,7 +584,7 @@ adb devices
                         console.log(`DEBUG: lookedRight=true, lookedLeft=${lookedLeft}`);
                     }
                     if (lookedLeft && lookedRight) {
-                        console.log(`DEBUG: Both balls looked at! Calling nextStep()`);
+                        console.log(`DEBUG: Both balls clicked! Calling nextStep()`);
                         lookLeft.setAttribute('visible', false);
                         lookRight.setAttribute('visible', false);
                         document.getElementById('lookHint').setAttribute('visible', false);
@@ -593,8 +592,8 @@ adb devices
                         setTimeout(() => nextStep(), 800);
                     }
                 };
-                // gaze-confirm emitted by gaze-select after 3 seconds
-                el.addEventListener('gaze-confirm', handle);
+                // Controller trigger (click event via A-Frame raycast)
+                el.addEventListener('click', handle);
             }
         });
 
@@ -618,52 +617,8 @@ adb devices
         });
 
         // Gaze-select: emits 'gaze-confirm' after a fuse (default 3000ms).
-        // Also emits 'gaze-start'/'gaze-cancel' for visual feedback.
-        AFRAME.registerComponent('gaze-select', {
-            schema: { fuseTime: { type: 'int', default: 3000 } },
-            init: function () {
-                this.timer = null;
-                const el = this.el;
-                const start = () => {
-                    // visual feedback: slightly scale target
-                    el.setAttribute('scale', '1.15 1.15 1.15');
-                    // show small VR-tip if available
-                    try { if (isInVR && el.getAttribute && el.getAttribute('data-tip')) showVrTip(el.getAttribute('data-tip'), 2500); } catch (e) { }
-                    // animate cursor progress ring (thetaLength 0 -> 360)
-                    try {
-                        const prog = document.querySelector('#cursorProgress');
-                        if (prog) {
-                            prog.removeAttribute('animation__prog');
-                            prog.setAttribute('animation__prog', `property: geometry.thetaLength; to: 360; dur: ${this.data.fuseTime}; easing: linear`);
-                        }
-                    } catch (e) { }
-                    this.timer = setTimeout(() => {
-                        // play short confirm tone and emit confirm event
-                        playConfirmTone();
-                        el.emit('gaze-confirm');
-                        this.timer = null;
-                        // clear progress ring
-                        try { const prog = document.querySelector('#cursorProgress'); if (prog) { prog.removeAttribute('animation__prog'); prog.setAttribute('geometry', 'thetaLength: 0'); } } catch (e) { }
-                    }, this.data.fuseTime);
-                };
-                const stop = () => {
-                    if (this.timer) clearTimeout(this.timer);
-                    this.timer = null;
-                    el.setAttribute('scale', '1 1 1');
-                    try { const prog = document.querySelector('#cursorProgress'); if (prog) { prog.removeAttribute('animation__prog'); prog.setAttribute('geometry', 'thetaLength: 0'); } } catch (e) { }
-                };
-                el.addEventListener('mouseenter', start);
-                el.addEventListener('mouseleave', stop);
-                // support non-VR (mouse) quick selection
-                el.addEventListener('mousedown', () => {
-                    stop();
-                    // immediate confirm on mouse down with tiny tone
-                    playConfirmTone();
-                    el.emit('gaze-confirm');
-                });
-            }
-        });
-
+        // Gaze-select component REMOVED - using only controller triggers
+        
         // Pick-up / hold with mouse/touch/cursor (klikken pakt het object vast)
         AFRAME.registerComponent('pickable', {
             init: function () {
@@ -1033,12 +988,10 @@ adb devices
                                 // show gaze markers and enable components
                                 lookLeft.setAttribute('visible', true);
                                 lookRight.setAttribute('visible', true);
-                                // Add BOTH gaze-select (for 3s timer) AND gaze-trigger (to handle the confirm event)
-                                lookLeft.setAttribute('gaze-select', { fuseTime: 3000 });
-                                lookRight.setAttribute('gaze-select', { fuseTime: 3000 });
+                                // Only gaze-trigger - no gaze-select (controller-only)
                                 lookLeft.setAttribute('gaze-trigger', { id: 'left' });
                                 lookRight.setAttribute('gaze-trigger', { id: 'right' });
-                                if (isInVR) showVrTip('Tip: Kijk naar de gele balletjes (3 sec) of gebruik controller trigger.\nLinker thumbstick = lopen!');
+                                if (isInVR) showVrTip('Tip: Wijs controller naar gele balletjes en druk trigger!');
                             }
                         }
                     ]);
@@ -1086,9 +1039,7 @@ adb devices
                     spray.setAttribute('pickable', '');
                     plaster.setAttribute('pickable', '');
                     towel.setAttribute('pickable', '');
-                    spray.setAttribute('gaze-select', '');
-                    plaster.setAttribute('gaze-select', '');
-                    towel.setAttribute('gaze-select', '');
+                    // Controller-only interaction, no gaze
                     ambulanceEnRoute = true;
                     towel.setAttribute('glow', { active: true });
                     spray.setAttribute('glow', { active: false });
@@ -1115,10 +1066,7 @@ adb devices
                                 spray.setAttribute('pickable', '');
                                 plaster.setAttribute('pickable', '');
                                 towel.setAttribute('pickable', '');
-                                // enable gaze selection for VR users (ALLEEN voor EHBO items)
-                                spray.setAttribute('gaze-select', '');
-                                plaster.setAttribute('gaze-select', '');
-                                towel.setAttribute('gaze-select', '');
+                                // Controller-only interaction, no gaze
                                 // enforce the EHBO interaction sequence visibly for the user:
                                 // handdoek eerst, daarna spray, dan pleister
                                 // ensure ambulanceEnRoute flag so glow logic activates while treating
@@ -1129,7 +1077,7 @@ adb devices
                                 plaster.setAttribute('glow', { active: false });
                                 // pickable-component aanwezig; update glows for subsequent changes
                                 updateGlows();
-                                if (isInVR) showVrTip('Tip: Pak eerst de handdoek (kijk 3s), daarna spray en als laatste pleister.');
+                                if (isInVR) showVrTip('Tip: Pak eerst de handdoek, daarna spray en als laatste pleister. Wijs en trigger!');
                                 // Also create a visible floating callout above the towel to draw attention
                                 // (callout/pointer removed to restore previous behaviour)
                             }
@@ -1352,10 +1300,8 @@ adb devices
                 t.setAttribute('scale', '1.2 1.2 1.2');
                 t.setAttribute('font-size', '64');
                 btn.appendChild(t);
-                // Add gaze-select for 3-second gaze confirmation (emits gaze-confirm event)
-                btn.setAttribute('gaze-select', { fuseTime: 3000 });
-                // Support both gaze-confirm (3s look) and controller trigger (click)
-                // Store clicked state on button element itself (not local var)
+                // Controller-only interaction (click events)
+                // Store clicked state on button element itself
                 btn.dataset.clicked = 'false';
                 const btnAction = () => {
                     // Check if already clicked or HUD not visible
@@ -1512,7 +1458,6 @@ adb devices
                 const x = -0.3 + col * 0.32;
                 const y = 0.15 - row * 0.2;
                 btn.setAttribute('position', `${x} ${y} 0.01`);
-                btn.setAttribute('gaze-select', '');
 
                 const t = document.createElement('a-text');
                 t.setAttribute('value', d);
@@ -1539,7 +1484,6 @@ adb devices
             clearBtn.setAttribute('color', '#c0392b');
             clearBtn.setAttribute('class', 'interactable vrPhoneBtn');
             clearBtn.setAttribute('position', '-0.2 -0.35 0.01');
-            clearBtn.setAttribute('gaze-select', '');
             const clearText = document.createElement('a-text');
             clearText.setAttribute('value', 'Clear');
             clearText.setAttribute('color', '#fff');
@@ -1562,7 +1506,6 @@ adb devices
             callBtn.setAttribute('color', '#27ae60');
             callBtn.setAttribute('class', 'interactable vrPhoneBtn');
             callBtn.setAttribute('position', '0 -0.35 0.01');
-            callBtn.setAttribute('gaze-select', '');
             const callText = document.createElement('a-text');
             callText.setAttribute('value', 'Bellen');
             callText.setAttribute('color', '#fff');
@@ -1595,7 +1538,6 @@ adb devices
             closeBtn.setAttribute('color', '#3a3f4a');
             closeBtn.setAttribute('class', 'interactable vrPhoneBtn');
             closeBtn.setAttribute('position', '0.2 -0.35 0.01');
-            closeBtn.setAttribute('gaze-select', '');
             const closeText = document.createElement('a-text');
             closeText.setAttribute('value', 'Sluiten');
             closeText.setAttribute('color', '#fff');
@@ -1769,9 +1711,6 @@ adb devices
         // initialisatie: voeg componenten toe aan gaze targets (items worden pas interactief in stap 4)
         lookLeft.setAttribute('gaze-trigger', { id: 'left' });
         lookRight.setAttribute('gaze-trigger', { id: 'right' });
-        // add gaze-select to ensure 3s confirmation works on these markers too
-        lookLeft.setAttribute('gaze-select', '');
-        lookRight.setAttribute('gaze-select', '');
         // spray/plaster blijven onzichtbaar en niet-pickable tot stap 4
         // begin
         reset();
