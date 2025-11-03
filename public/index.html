@@ -219,8 +219,10 @@ adb devices
     <a-scene collision-check background="color: #aed9ff" vr-mode-ui="enabled: true">
         <!-- Camera Rig met VR controllers en thumbstick locomotion -->
         <a-entity id="cameraRig" position="0 0 6" movement-controls="controls: checkpoint, keyboard; speed: 0.15">
-            <!-- Camera met look-controls -->
-            <a-entity id="head" camera look-controls position="0 1.6 0"></a-entity>
+            <!-- Camera met look-controls en raycaster voor gaze detection -->
+            <a-entity id="head" camera look-controls position="0 1.6 0"
+                raycaster="objects: .gazeTarget; far: 10"
+                cursor="fuse: false; rayOrigin: mouse"></a-entity>
 
             <!-- Linker hand controller: locomotion -->
             <a-entity id="leftHand" oculus-touch-controls="hand: left" thumbstick-locomotion>
@@ -228,7 +230,7 @@ adb devices
 
             <!-- Rechter hand controller: raycaster voor interacties -->
             <a-entity id="rightHand" oculus-touch-controls="hand: right" laser-controls="hand: right"
-                raycaster="objects: .interactable, .gazeTarget, .phone-btn-vr; far: 10; lineColor: cyan; lineOpacity: 0.5"
+                raycaster="objects: .interactable, .phone-btn-vr; far: 10; lineColor: cyan; lineOpacity: 0.5"
                 line="color: cyan; opacity: 0.5">
             </a-entity>
         </a-entity>
@@ -316,7 +318,7 @@ adb devices
 
         <!-- Auto (oorzaak van het ongeval) -->
         <!-- Auto start nu aan de andere kant van de weg (z = -25) -->
-        <a-entity id="car" position="0 0 -25" rotation="0 0 0">
+        <a-entity id="car" position="0 0 -25" rotation="0 0 0" collision-check>
             <a-box depth="2" height="0.6" width="1.2" color="#c0392b" position="0 0.6 0"></a-box>
             <a-box depth="1.2" height="0.4" width="1" color="#e74c3c" position="0 1.0 0"></a-box>
             <a-cylinder radius="0.3" height="0.2" color="#2c3e50" rotation="90 0 0" position="0.6 0.3 0.9"></a-cylinder>
@@ -397,12 +399,12 @@ adb devices
             <a-cone radius-bottom="0.6" radius-top="0" height="0.9" color="#ffffff" position="0 0.51 0"></a-cone>
         </a-entity>
 
-        <!-- Look targets (balletjes) - interactable met triggers -->
-        <a-sphere id="lookLeft" color="#ffd166" radius="0.22" position="-1.2 1.6 5.6" class="gazeTarget interactable"
+        <!-- Look targets (balletjes) - alleen voor camera gaze, niet voor controller -->
+        <a-sphere id="lookLeft" color="#ffd166" radius="0.22" position="-1.2 1.6 5.6" class="gazeTarget"
             visible="true"></a-sphere>
-        <a-sphere id="lookRight" color="#ffd166" radius="0.22" position="1.2 1.6 5.6" class="gazeTarget interactable"
+        <a-sphere id="lookRight" color="#ffd166" radius="0.22" position="1.2 1.6 5.6" class="gazeTarget"
             visible="true"></a-sphere>
-        <a-text id="lookHint" value="Richt op de balletjes en druk de trigger om je omgeving te checken" align="center"
+        <a-text id="lookHint" value="Kijk naar de balletjes om je omgeving te checken" align="center"
             color="#fff" position="0 2 5.6" scale="0.95 0.95 0.95" visible="true"></a-text>
 
         <!-- Licht -->
@@ -823,7 +825,11 @@ adb devices
             schema: { id: { type: 'string' } },
             init: function () {
                 const el = this.el;
-                const handleInteraction = () => {
+                let gazeTimer = null;
+                let gazeProgress = 0;
+                const gazeDuration = 1500; // 1.5 seconden kijken
+                
+                const handleGazeComplete = () => {
                     // Alleen actief in stap 1
                     if (step !== 1) return;
 
@@ -846,17 +852,34 @@ adb devices
                     }
                 };
 
-                el.addEventListener('click', handleInteraction);
-                // Voor VR controller triggers
-                el.addEventListener('raycaster-intersected', (evt) => {
-                    if (step === 1) {
-                        el.setAttribute('scale', '1.15 1.15 1.15');
-                    }
+                // Gebruik mouseenter/mouseleave voor camera gaze (werkt ook in VR)
+                el.addEventListener('mouseenter', (evt) => {
+                    // Check of het van de camera komt (niet van controller raycaster)
+                    if (step !== 1 || !evt.detail || !evt.detail.intersection) return;
+                    
+                    // Start gaze timer
+                    const startTime = Date.now();
+                    gazeTimer = setInterval(() => {
+                        gazeProgress = Date.now() - startTime;
+                        const scale = 1 + (gazeProgress / gazeDuration) * 0.3;
+                        el.setAttribute('scale', `${scale} ${scale} ${scale}`);
+                        
+                        if (gazeProgress >= gazeDuration) {
+                            clearInterval(gazeTimer);
+                            handleGazeComplete();
+                        }
+                    }, 50);
                 });
-                el.addEventListener('raycaster-intersected-cleared', (evt) => {
+                
+                el.addEventListener('mouseleave', (evt) => {
+                    if (gazeTimer) {
+                        clearInterval(gazeTimer);
+                        gazeTimer = null;
+                    }
                     if (step === 1 && !lookedLeft && !lookedRight) {
                         el.setAttribute('scale', '1 1 1');
                     }
+                    gazeProgress = 0;
                 });
             }
         });
