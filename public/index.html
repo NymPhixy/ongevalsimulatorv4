@@ -1397,27 +1397,41 @@ adb devices
         function createVrPhone() {
             if (window.vrPhone) return;
             const camera = document.querySelector('[camera]');
+            if (!camera) {
+                console.warn('Cannot create VR phone: camera not found');
+                return;
+            }
             const group = document.createElement('a-entity');
             group.setAttribute('id', 'vrPhone');
-            group.setAttribute('position', '0 -0.2 -1');
+            group.setAttribute('position', '0 0 -1.5');  // Closer and directly ahead
             group.setAttribute('visible', 'false');
 
             const bg = document.createElement('a-plane');
-            bg.setAttribute('width', '0.65');
-            bg.setAttribute('height', '0.95');
-            bg.setAttribute('color', '#111');
-            bg.setAttribute('material', 'opacity: 0.95; shader: flat');
+            bg.setAttribute('width', '0.8');
+            bg.setAttribute('height', '1.2');
+            bg.setAttribute('color', '#1a1a2e');
+            bg.setAttribute('material', 'opacity: 0.98; shader: flat');
             bg.setAttribute('position', '0 0 0');
             group.appendChild(bg);
 
             const numText = document.createElement('a-text');
             numText.setAttribute('id', 'vrPhoneNumberText');
             numText.setAttribute('value', '');
-            numText.setAttribute('position', '0 0.36 0.01');
+            numText.setAttribute('position', '0 0.45 0.01');
             numText.setAttribute('align', 'center');
-            numText.setAttribute('color', '#fff');
-            numText.setAttribute('width', '1.2');
+            numText.setAttribute('color', '#ffff00');
+            numText.setAttribute('font-size', '80');
+            numText.setAttribute('width', '2');
             group.appendChild(numText);
+
+            const titleText = document.createElement('a-text');
+            titleText.setAttribute('value', 'NOODNUMMER');
+            titleText.setAttribute('position', '0 0.65 0.01');
+            titleText.setAttribute('align', 'center');
+            titleText.setAttribute('color', '#fff');
+            titleText.setAttribute('font-size', '48');
+            titleText.setAttribute('width', '2');
+            group.appendChild(titleText);
 
             const digits = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
             for (let i = 0; i < digits.length; i++) {
@@ -1425,12 +1439,12 @@ adb devices
                 const row = Math.floor(i / 3);
                 const col = i % 3;
                 const btn = document.createElement('a-plane');
-                btn.setAttribute('width', '0.17');
-                btn.setAttribute('height', '0.13');
+                btn.setAttribute('width', '0.22');
+                btn.setAttribute('height', '0.16');
                 btn.setAttribute('color', '#2c3e50');
                 btn.setAttribute('class', 'interactable vrPhoneBtn');
-                const x = -0.21 + col * 0.21;
-                const y = 0.14 - row * 0.15;
+                const x = -0.3 + col * 0.32;
+                const y = 0.15 - row * 0.2;
                 btn.setAttribute('position', `${x} ${y} 0.01`);
                 btn.setAttribute('gaze-select', '');
 
@@ -1440,6 +1454,7 @@ adb devices
                 t.setAttribute('color', '#fff');
                 t.setAttribute('position', '0 0 0.02');
                 t.setAttribute('width', '0.7');
+                t.setAttribute('font-size', '60');
                 btn.appendChild(t);
 
                 const onPress = () => {
@@ -1453,11 +1468,11 @@ adb devices
             }
 
             const clearBtn = document.createElement('a-plane');
-            clearBtn.setAttribute('width', '0.19');
-            clearBtn.setAttribute('height', '0.09');
+            clearBtn.setAttribute('width', '0.24');
+            clearBtn.setAttribute('height', '0.12');
             clearBtn.setAttribute('color', '#c0392b');
             clearBtn.setAttribute('class', 'interactable vrPhoneBtn');
-            clearBtn.setAttribute('position', '-0.15 -0.3 0.01');
+            clearBtn.setAttribute('position', '-0.2 -0.35 0.01');
             clearBtn.setAttribute('gaze-select', '');
             const clearText = document.createElement('a-text');
             clearText.setAttribute('value', 'Clear');
@@ -1465,6 +1480,7 @@ adb devices
             clearText.setAttribute('align', 'center');
             clearText.setAttribute('position', '0 0 0.02');
             clearText.setAttribute('width', '0.7');
+            clearText.setAttribute('font-size', '48');
             clearBtn.appendChild(clearText);
             const onClear = () => {
                 window.vrPhoneNumber = '';
@@ -1475,11 +1491,11 @@ adb devices
             group.appendChild(clearBtn);
 
             const callBtn = document.createElement('a-plane');
-            callBtn.setAttribute('width', '0.19');
-            callBtn.setAttribute('height', '0.09');
+            callBtn.setAttribute('width', '0.24');
+            callBtn.setAttribute('height', '0.12');
             callBtn.setAttribute('color', '#27ae60');
             callBtn.setAttribute('class', 'interactable vrPhoneBtn');
-            callBtn.setAttribute('position', '0 -0.3 0.01');
+            callBtn.setAttribute('position', '0 -0.35 0.01');
             callBtn.setAttribute('gaze-select', '');
             const callText = document.createElement('a-text');
             callText.setAttribute('value', 'Bellen');
@@ -1487,6 +1503,7 @@ adb devices
             callText.setAttribute('align', 'center');
             callText.setAttribute('position', '0 0 0.02');
             callText.setAttribute('width', '0.7');
+            callText.setAttribute('font-size', '48');
             callBtn.appendChild(callText);
             const onCall = () => {
                 const num = window.vrPhoneNumber || '';
@@ -1507,11 +1524,11 @@ adb devices
             group.appendChild(callBtn);
 
             const closeBtn = document.createElement('a-plane');
-            closeBtn.setAttribute('width', '0.19');
-            closeBtn.setAttribute('height', '0.09');
+            closeBtn.setAttribute('width', '0.24');
+            closeBtn.setAttribute('height', '0.12');
             closeBtn.setAttribute('color', '#3a3f4a');
             closeBtn.setAttribute('class', 'interactable vrPhoneBtn');
-            closeBtn.setAttribute('position', '0.15 -0.3 0.01');
+            closeBtn.setAttribute('position', '0.2 -0.35 0.01');
             closeBtn.setAttribute('gaze-select', '');
             const closeText = document.createElement('a-text');
             closeText.setAttribute('value', 'Sluiten');
@@ -1519,10 +1536,10 @@ adb devices
             closeText.setAttribute('align', 'center');
             closeText.setAttribute('position', '0 0 0.02');
             closeText.setAttribute('width', '0.7');
+            closeText.setAttribute('font-size', '48');
             closeBtn.appendChild(closeText);
             const onClose = () => { group.setAttribute('visible', false); };
             closeBtn.addEventListener('gaze-confirm', onClose);
-            closeBtn.addEventListener('click', onClose);
             group.appendChild(closeBtn);
 
             camera.appendChild(group);
