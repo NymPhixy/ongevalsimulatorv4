@@ -300,13 +300,13 @@ adb devices
             visible="false"></a-box>
 
         <!-- Spray en Pleister (komen op de EHBO-doos te liggen) -->
-        <a-cylinder id="spray" radius="0.12" height="0.4" color="#3498db" position="0.4 0.2 1.4" class="interactable"
+        <a-cylinder id="spray" radius="0.12" height="0.4" color="#3498db" position="0.4 0.2 1.4" class="interactable ehbo-item"
             visible="false"></a-cylinder>
         <a-text id="sprayLabel" value="Spray" align="center" color="#fff" position="0.4 0.65 1.4" scale="0.6 0.6 0.6"
             visible="false"></a-text>
 
         <a-box id="plaster" width="0.28" height="0.08" depth="0.14" color="#f7dc6f" position="1.2 0.04 1.4"
-            class="interactable" visible="false"></a-box>
+            class="interactable ehbo-item" visible="false"></a-box>
         <a-text id="plasterLabel" value="Pleister" align="center" color="#fff" position="1.2 0.6 1.4"
             scale="0.6 0.6 0.6" visible="false"></a-text>
 
@@ -383,47 +383,6 @@ adb devices
 
         let ehboStep = 0; // 0: nothing done, 1: spray used, 2: plaster applied
 
-        // Simpel EHBO systeem: items reageren op clicks
-        function setupEHBOItems() {
-            console.log('Setting up EHBO items');
-            
-            // Spray click handler
-            spray.addEventListener('click', () => {
-                if (ehboStep < 1) {
-                    console.log('Spray clicked!');
-                    ehboStep = 1;
-                    wound.setAttribute('color', '#e67e22');
-                    showFeedback('✅ Je hebt de wond met spray gedesinfecteerd!', true, () => {
-                        console.log('Spray feedback shown');
-                    });
-                } else {
-                    showFeedback('De wond is al gedesinfecteerd.', true, () => {});
-                }
-            });
-            
-            // Plaster click handler
-            plaster.addEventListener('click', () => {
-                if (ehboStep < 1) {
-                    showFeedback('❌ Eerst desinfecteren met spray!', false, () => {});
-                } else if (ehboStep === 1) {
-                    console.log('Plaster clicked!');
-                    ehboStep = 2;
-                    wound.setAttribute('visible', false);
-                    showFeedback('✅ Pleister aangebracht! Ambulance is onderweg.', true, () => {
-                        setTimeout(() => {
-                            ehbo.setAttribute('animation__close', 'property: position; to: 0.8 0 1.2; dur: 800; easing: easeInQuad');
-                            setTimeout(() => {
-                                ehbo.setAttribute('visible', false);
-                                triggerAmbulanceArrival();
-                                setTimeout(() => nextStep(), 100);
-                            }, 900);
-                        }, 500);
-                    });
-                } else {
-                    showFeedback('Pleister al aangebracht.', true, () => {});
-                }
-            });
-        }
         let crashed = false;
         let carMoving = false;
         let ehboPicked = false;
@@ -563,10 +522,55 @@ adb devices
             }
         });
 
+        // EHBO items click component
+        AFRAME.registerComponent('ehbo-item', {
+            init: function () {
+                const el = this.el;
+                const itemId = el.getAttribute('id');
+                
+                el.addEventListener('click', () => {
+                    console.log('EHBO item clicked:', itemId);
+                    
+                    if (itemId === 'spray') {
+                        if (ehboStep < 1) {
+                            console.log('Spray clicked!');
+                            ehboStep = 1;
+                            wound.setAttribute('color', '#e67e22');
+                            showFeedback('✅ Je hebt de wond met spray gedesinfecteerd!', true, () => {
+                                console.log('Spray feedback shown');
+                            });
+                        } else {
+                            showFeedback('De wond is al gedesinfecteerd.', true, () => { });
+                        }
+                    } else if (itemId === 'plaster') {
+                        if (ehboStep < 1) {
+                            showFeedback('❌ Eerst desinfecteren met spray!', false, () => { });
+                        } else if (ehboStep === 1) {
+                            console.log('Plaster clicked!');
+                            ehboStep = 2;
+                            wound.setAttribute('visible', false);
+                            showFeedback('✅ Pleister aangebracht! Ambulance is onderweg.', true, () => {
+                                setTimeout(() => {
+                                    ehbo.setAttribute('animation__close', 'property: position; to: 0.8 0 1.2; dur: 800; easing: easeInQuad');
+                                    setTimeout(() => {
+                                        ehbo.setAttribute('visible', false);
+                                        triggerAmbulanceArrival();
+                                        setTimeout(() => nextStep(), 100);
+                                    }, 900);
+                                }, 500);
+                            });
+                        } else {
+                            showFeedback('Pleister al aangebracht.', true, () => { });
+                        }
+                    }
+                });
+            }
+        });
+
         // OLD CODE DISABLED - Using simple click handlers instead
         // AFRAME.registerComponent('pickable', { ... });
         // person.addEventListener('click', () => { ... });
-        
+
         // Oude hulp-functies (nu niet meer nodig):
         function dropItem(id, pos) {
             // Placeholder - no longer used
@@ -577,11 +581,11 @@ adb devices
             // glow spray when visible and not disinfected
             const sprayActive = (step >= 4 && spray.getAttribute('visible') === 'true' && !woundDisinfected);
             spray.setAttribute('glow', { active: sprayActive });
-            
+
             // glow plaster when visible, disinfected but not applied
             const plasterActive = (step >= 4 && plaster.getAttribute('visible') === 'true' && woundDisinfected && !plasterApplied);
             plaster.setAttribute('glow', { active: plasterActive });
-            
+
             // highlight wound location in a distinct pulsing color while treatable
             const woundActive = (step >= 4 && spray.getAttribute('visible') === 'true' && !woundDisinfected);
             if (woundActive) {
@@ -688,14 +692,13 @@ adb devices
                                 plaster.setAttribute('visible', true);
                                 sprayLabel.setAttribute('visible', true);
                                 plasterLabel.setAttribute('visible', true);
-                                
-                                // Setup de click handlers voor items
-                                setupEHBOItems();
+
+                                // Items have ehbo-item component already - they are clickable!
                                 
                                 // Pulse de wond als reminder
                                 wound.setAttribute('animation__pulse', 'property: scale; dir: alternate; dur: 700; to: 1.35 1.35 1.35; loop: true');
                                 wound.setAttribute('animation__color', 'property: color; dir: alternate; dur: 700; to: #ff6b6b; loop: true');
-                                
+
                                 // Glow spray om aan te duiden dat het beschikbaar is
                                 spray.setAttribute('glow', { active: true });
                             }
@@ -803,7 +806,7 @@ adb devices
             keypad.style.gridTemplateColumns = 'repeat(3, 1fr)';
             keypad.style.gap = '8px';
             keypad.style.marginBottom = '12px';
-            
+
             const digits = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
             digits.forEach(d => {
                 const b = document.createElement('button');
@@ -824,13 +827,13 @@ adb devices
             controls.style.display = 'flex';
             controls.style.gap = '8px';
             controls.style.flexWrap = 'wrap';
-            
+
             const clearBtn = document.createElement('button');
             clearBtn.textContent = 'Wissen';
             clearBtn.className = 'phone-btn phone-bad';
             clearBtn.style.flex = '1';
             clearBtn.onclick = () => { numLine.textContent = ''; };
-            
+
             const callBtn = document.createElement('button');
             callBtn.textContent = 'BELLEN';
             callBtn.className = 'phone-btn phone-good';
@@ -842,7 +845,7 @@ adb devices
                 if (number === '112') {
                     phoneScreen.textContent = "112 centraal: Ambulance is onderweg!";
                     phoneChoices.innerHTML = '';
-                    
+
                     const msg = document.createElement('div');
                     msg.textContent = 'Prima gedaan! Je hebt hulp geroepen.';
                     msg.style.color = '#fff';
@@ -850,7 +853,7 @@ adb devices
                     msg.style.padding = '20px';
                     msg.style.fontSize = '16px';
                     phoneChoices.appendChild(msg);
-                    
+
                     setTimeout(() => {
                         phone.style.display = 'none';
                         startAmbulanceRun();
@@ -864,7 +867,7 @@ adb devices
                     }, 1200);
                 }
             };
-            
+
             controls.appendChild(clearBtn);
             controls.appendChild(callBtn);
             phoneChoices.appendChild(controls);
