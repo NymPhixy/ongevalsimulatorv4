@@ -985,13 +985,13 @@ adb devices
 
         function nextStep() {
             step++;
-            // Teleport player to appropriate location for each step
+            // Teleport player ONLY in VR mode - in browser use AWSD movement
             const rig = document.getElementById('cameraRig');
-            if (rig) {
+            if (isInVR && rig) {
                 if (step === 1) rig.setAttribute('position', '0 0 6');  // Far from victim, safe area
-                else if (step === 2) rig.setAttribute('position', '0 0 0.5');  // Near victim for responsiveness check
-                else if (step === 3) rig.setAttribute('position', '0 0 0.5');  // Still near victim for 112 call
-                else if (step === 4) rig.setAttribute('position', '0 0 -1');  // At EHBO area
+                else if (step === 2) rig.setAttribute('position', '0 0 1');  // Closer to victim
+                else if (step === 3) rig.setAttribute('position', '0 0 1');  // Still near victim for 112 call
+                else if (step === 4) rig.setAttribute('position', '-2 0 -1');  // In front of ambulance, can see victim and EHBO supplies
                 // After plaster applied: teleport to sidewalk to avoid ambulance (done in ambulanceArrivedSequence)
             }
             // Zorg dat de 'Lees vraag' knop altijd de huidige vraag toont
@@ -1302,8 +1302,17 @@ adb devices
                 t.setAttribute('scale', '1.2 1.2 1.2');
                 t.setAttribute('font-size', '64');
                 btn.appendChild(t);
-                // ONLY gaze-confirm for VR buttons - prevent double triggering!
-                btn.addEventListener('gaze-confirm', () => { hideVrPanel(); opt.action && opt.action(); });
+                // Support both gaze-confirm (3s look) and controller trigger (click)
+                // Use a flag to prevent double-triggering
+                let btnClicked = false;
+                const btnAction = () => {
+                    if (btnClicked || !window.vrHud || window.vrHud.getAttribute('visible') !== 'true') return;
+                    btnClicked = true;
+                    hideVrPanel();
+                    opt.action && opt.action();
+                };
+                btn.addEventListener('gaze-confirm', btnAction);
+                btn.addEventListener('click', btnAction);
                 btnContainer.appendChild(btn);
             });
             hud.setAttribute('visible', 'true');
@@ -1615,9 +1624,11 @@ adb devices
                         // ambulance rijdt weg
                         ambulance.setAttribute('animation__away', 'property: position; to: 0 0 40; dur: 4000; easing: linear');
                         setTimeout(() => {
-                            // Teleport player to sidewalk (safe from ambulance)
-                            const rig = document.getElementById('cameraRig');
-                            if (rig) rig.setAttribute('position', '0 0 8');
+                            // Teleport player to sidewalk (safe from ambulance) - ONLY in VR
+                            if (isInVR) {
+                                const rig = document.getElementById('cameraRig');
+                                if (rig) rig.setAttribute('position', '0 0 8');
+                            }
                             // einde van sequentie -> volgende stap (afsluitende fase)
                             // voeg vertraging toe zodat stap 5 goed zichtbaar is
                             setTimeout(() => nextStep(), 2000);
