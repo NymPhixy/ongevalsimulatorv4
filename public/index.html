@@ -326,13 +326,13 @@ adb devices
 
         <a-box id="plaster" width="0.28" height="0.08" depth="0.14" color="#f7dc6f" position="1.2 0.04 1.4"
             class="interactable" visible="false"></a-box>
-        <a-text id="plasterLabel" value="Pleister" align="center" color="#111" position="1.2 0.6 1.4"
+        <a-text id="plasterLabel" value="Pleister" align="center" color="#fff" position="1.2 0.6 1.4"
             scale="0.6 0.6 0.6" visible="false"></a-text>
 
         <!-- Handdoek: nieuw object voor de behandelingsvolgorde (stypen -> spray -> pleister) -->
         <a-box id="towel" width="0.35" height="0.02" depth="0.22" color="#f5cda7" position="0.8 0.14 1.2"
             class="interactable" visible="false"></a-box>
-        <a-text id="towelLabel" value="Handdoek" align="center" color="#111" position="0.8 0.7 1.2" scale="0.6 0.6 0.6"
+        <a-text id="towelLabel" value="Handdoek" align="center" color="#fff" position="0.8 0.7 1.2" scale="0.6 0.6 0.6"
             visible="false"></a-text>
 
         <!-- Ambulance (komt vanaf andere kant dan de impact) -->
@@ -1585,22 +1585,22 @@ adb devices
             try {
                 if (spray.parentNode) spray.parentNode.removeChild(spray);
                 scene.appendChild(spray);
-                spray.setAttribute('position', '0.4 0.2 1.4'); 
-                spray.setAttribute('rotation', '0 0 0'); 
+                spray.setAttribute('position', '0.4 0.2 1.4');
+                spray.setAttribute('rotation', '0 0 0');
                 spray.setAttribute('scale', '1 1 1');
             } catch (e) { console.warn('Error resetting spray:', e); }
             try {
                 if (plaster.parentNode) plaster.parentNode.removeChild(plaster);
                 scene.appendChild(plaster);
-                plaster.setAttribute('position', '1.2 0.04 1.4'); 
-                plaster.setAttribute('rotation', '0 0 0'); 
+                plaster.setAttribute('position', '1.2 0.04 1.4');
+                plaster.setAttribute('rotation', '0 0 0');
                 plaster.setAttribute('scale', '1 1 1');
             } catch (e) { console.warn('Error resetting plaster:', e); }
             try {
                 if (towel.parentNode) towel.parentNode.removeChild(towel);
                 scene.appendChild(towel);
-                towel.setAttribute('position', '0.8 0.14 1.2'); 
-                towel.setAttribute('rotation', '0 0 0'); 
+                towel.setAttribute('position', '0.8 0.14 1.2');
+                towel.setAttribute('rotation', '0 0 0');
                 towel.setAttribute('scale', '1 1 1');
             } catch (e) { console.warn('Error resetting towel:', e); }
             spray.setAttribute('visible', false); plaster.setAttribute('visible', false);
