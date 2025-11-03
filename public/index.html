@@ -381,7 +381,49 @@ adb devices
         const medic1 = document.getElementById('medic1');
         const medic2 = document.getElementById('medic2');
 
-        let step = 0;
+        let ehboStep = 0; // 0: nothing done, 1: spray used, 2: plaster applied
+
+        // Simpel EHBO systeem: items reageren op clicks
+        function setupEHBOItems() {
+            console.log('Setting up EHBO items');
+            
+            // Spray click handler
+            spray.addEventListener('click', () => {
+                if (ehboStep < 1) {
+                    console.log('Spray clicked!');
+                    ehboStep = 1;
+                    wound.setAttribute('color', '#e67e22');
+                    showFeedback('✅ Je hebt de wond met spray gedesinfecteerd!', true, () => {
+                        console.log('Spray feedback shown');
+                    });
+                } else {
+                    showFeedback('De wond is al gedesinfecteerd.', true, () => {});
+                }
+            });
+            
+            // Plaster click handler
+            plaster.addEventListener('click', () => {
+                if (ehboStep < 1) {
+                    showFeedback('❌ Eerst desinfecteren met spray!', false, () => {});
+                } else if (ehboStep === 1) {
+                    console.log('Plaster clicked!');
+                    ehboStep = 2;
+                    wound.setAttribute('visible', false);
+                    showFeedback('✅ Pleister aangebracht! Ambulance is onderweg.', true, () => {
+                        setTimeout(() => {
+                            ehbo.setAttribute('animation__close', 'property: position; to: 0.8 0 1.2; dur: 800; easing: easeInQuad');
+                            setTimeout(() => {
+                                ehbo.setAttribute('visible', false);
+                                triggerAmbulanceArrival();
+                                setTimeout(() => nextStep(), 100);
+                            }, 900);
+                        }, 500);
+                    });
+                } else {
+                    showFeedback('Pleister al aangebracht.', true, () => {});
+                }
+            });
+        }
         let crashed = false;
         let carMoving = false;
         let ehboPicked = false;
@@ -521,129 +563,13 @@ adb devices
             }
         });
 
-        // Pick-up / hold with mouse/touch/cursor (klikken pakt het object vast)
-        AFRAME.registerComponent('pickable', {
-            init: function () {
-                const el = this.el;
-                function tryPickup() {
-                    // only allow pickup when items zijn usable (EHBO stage)
-                    if (step >= 4 && !heldItem && el.getAttribute('visible') === 'true') {
-                        const itemId = el.getAttribute('id');
-                        heldItem = itemId; // Store BEFORE making any changes
-
-                        // attach to camera so user 'holds' it
-                        try {
-                            const scene = document.querySelector('a-scene');
-                            // Remove from current parent
-                            if (el.object3D && el.object3D.parent) {
-                                el.object3D.parent.removeChild(el.object3D);
-                            }
-
-                            // Get the camera and attach the item
-                            const cam = document.querySelector('[camera]').parentEl;
-                            cam.appendChild(el);
-
-                            // Position the item in the user's hand
-                            el.setAttribute('position', '0 -0.12 -0.6');
-                            el.setAttribute('rotation', '0 0 0');
-                            el.setAttribute('scale', '0.9 0.9 0.9');
-
-                            // disable glow while held
-                            el.components['glow'] && el.setAttribute('glow', { active: false });
-
-                            // Show feedback AFTER setting heldItem
-                            const itemName = (itemId === 'spray' ? 'spraybus' : 'pleister');
-                            showFeedback('Je hebt de ' + itemName + ' gepakt. Klik op het slachtoffer om het te gebruiken.', true, () => { });
-                        } catch (e) {
-                            console.error('Cannot pick up element', e);
-                            heldItem = null; // Reset if pickup fails
-                        }
-                    }
-                }
-
-                // support mouse/touch and A-Frame click events
-                el.addEventListener('click', tryPickup);
-                el.addEventListener('mousedown', tryPickup);
-                el.addEventListener('touchstart', tryPickup);
-            }
-        });
-
-        // klik op slachtoffer om gebruikt item toe te passen (negeer klikken vóór EHBO-stap / geen 'niets vast' melding)
-        person.addEventListener('click', () => {
-            if (step < 4) return; // stil genegeerd zolang EHBO nog niet beschikbaar is
-
-            console.log('Person clicked. heldItem:', heldItem, 'woundDisinfected:', woundDisinfected, 'plasterApplied:', plasterApplied);
-
-            if (!heldItem) return; // geen feedback tonen wanneer niets vast
-
-            if (heldItem === 'spray') {
-                if (!woundDisinfected) {
-                    console.log('Applying spray...');
-                    wound.setAttribute('color', '#e67e22');
-                    woundDisinfected = true;
-                    // drop the spray back to spawn
-                    dropItem('spray', { x: 0.4, y: 0.2, z: 1.4 });
-                    heldItem = null;
-                    // ACTIVEER glow voor pleister nu
-                    plaster.setAttribute('glow', { active: true });
-                    showFeedback('✅ Wond gedesinfecteerd met spray.', true, () => {
-                        // update glow states
-                        updateGlows();
-                    });
-                } else {
-                    showFeedback('De wond is al gedesinfecteerd.', true, () => { });
-                }
-            } else if (heldItem === 'plaster') {
-                if (!woundDisinfected) {
-                    console.log('Must disinfect first!');
-                    showFeedback('❌ Eerst desinfecteren! Gebruik eerst de spray.', false);
-                    return;
-                }
-                if (!plasterApplied) {
-                    console.log('Applying plaster...');
-                    wound.setAttribute('visible', false);
-                    plasterApplied = true;
-                    dropItem('plaster', { x: 1.2, y: 0.04, z: 1.4 });
-                    heldItem = null;
-                    showFeedback('✅ Pleister aangebracht. De ambulance zal nu volledig arriveren.', true, () => {
-                        // stop glow
-                        plaster.setAttribute('glow', { active: false });
-                        // verplaats EHBO-kist terug
-                        ehbo.setAttribute('animation__close', 'property: position; to: 0.8 0 1.2; dur: 800; easing: easeInQuad');
-                        setTimeout(() => {
-                            ehbo.setAttribute('visible', false);
-                            ehbo.removeAttribute('animation__close');
-                            // trigger ambulance arrival (medics stappen uit en nemen de persoon mee)
-                            triggerAmbulanceArrival();
-                            // ga door naar de volgende stap (ambulance / vervolg)
-                            setTimeout(() => nextStep(), 50);
-                        }, 900);
-                    });
-                } else {
-                    showFeedback('Pleister al aangebracht.', true);
-                }
-            }
-        });
-
+        // OLD CODE DISABLED - Using simple click handlers instead
+        // AFRAME.registerComponent('pickable', { ... });
+        // person.addEventListener('click', () => { ... });
+        
+        // Oude hulp-functies (nu niet meer nodig):
         function dropItem(id, pos) {
-            const item = document.getElementById(id);
-            // ensure item exists and reparent to scene
-            const scene = document.querySelector('a-scene');
-
-            // Verwijder het item van de camera en voeg het terug toe aan de scene
-            if (item.object3D && item.object3D.parent) {
-                item.object3D.parent.removeChild(item.object3D);
-            }
-
-            scene.appendChild(item);
-            item.setAttribute('position', `${pos.x} ${pos.y} ${pos.z}`);
-            item.setAttribute('rotation', '0 0 0');
-            item.setAttribute('scale', '1 1 1');
-
-            // Re-enable pickable component so user can pick it up again if needed
-            item.setAttribute('pickable', '');
-            // allow pick up again
-            item.components['glow'] && item.setAttribute('glow', { active: false });
+            // Placeholder - no longer used
         }
 
         function updateGlows() {
@@ -739,62 +665,58 @@ adb devices
                     '<strong>☎️ Stap 3 – Bel 112</strong><br><br>' +
                     'Wat moet je doen zodra je vaststelt dat er mogelijk gewonden zijn?',
                     [
-                        { text: 'A. Je belt 112 en vertelt wat er is gebeurd', correct: true, feedback: 'Juist — bel 112 en geef locatie en aantal gewonden door.', next: () => { console.log('OPENING PHONE'); openPhone(); } },
+                        { text: 'A. Je belt 112 en vertelt wat er is gebeurd', correct: true, feedback: 'Juist — bel 112 en geef locatie en aantal gewonden door.', next: () => { console.log('OPENING PHONE'); openPhoneSimple(); } },
                         { text: 'B. Je wacht even of hij zelf opstaat', correct: false, feedback: 'Wachten kost waardevolle tijd; bel altijd bij mogelijk ernstig letsel.' },
                         { text: 'C. Je zoekt iemand anders die misschien wil bellen', correct: false, feedback: 'Je kunt iemand vragen, maar jij bent aanwezig — bel direct.' }
                     ]
                 );
             }
             else if (step === 4) {
-                // EHBO stap: items zichtbaar nadat 112 is gestart (en ambulance en route)
+                // EHBO stap: items zichtbaar
                 showPanel(
-                    '<strong>🧰 Stap 4 – EHBO: pak spray en pleister</strong><br><br>' +
-                    'Situatie:\nEr ligt een EHBO-doos naast het slachtoffer met een spraybus en pleister. Klik op de spullen om ze te pakken en behandel de wond terwijl de hulp onderweg is.',
+                    '<strong>🧰 Stap 4 – EHBO: Behandel de wond</strong><br><br>' +
+                    'Er ligt een EHBO-doos met spray en pleister naast het slachtoffer.\n\n' +
+                    '1️⃣ Klik op de SPRAY om de wond te desinfecteren\n' +
+                    '2️⃣ Klik op de PLEISTER om de wond af te dekken',
                     [
                         {
                             text: 'Ga naar de EHBO spullen', good: true, action: () => {
                                 panel.style.display = 'none';
-                                // zet EHBO-kist en items zichtbaar bij slachtoffer
+                                // Zet EHBO items zichtbaar
                                 ehbo.setAttribute('visible', true);
                                 spray.setAttribute('visible', true);
                                 plaster.setAttribute('visible', true);
                                 sprayLabel.setAttribute('visible', true);
                                 plasterLabel.setAttribute('visible', true);
-                                // maak items nu pas interactief en activeer glow DIRECT
-                                spray.setAttribute('pickable', '');
-                                plaster.setAttribute('pickable', '');
-                                // ACTIVEER glow ONMIDDELLIJK zodat gebruiker ziet dat deze items beschikbaar zijn
-                                spray.setAttribute('glow', { active: true });
-                                plaster.setAttribute('glow', { active: false }); // plaster gloeidt pas nadat spray gebruikt is
-                                // Activeer wond pulse als reminder
+                                
+                                // Setup de click handlers voor items
+                                setupEHBOItems();
+                                
+                                // Pulse de wond als reminder
                                 wound.setAttribute('animation__pulse', 'property: scale; dir: alternate; dur: 700; to: 1.35 1.35 1.35; loop: true');
                                 wound.setAttribute('animation__color', 'property: color; dir: alternate; dur: 700; to: #ff6b6b; loop: true');
+                                
+                                // Glow spray om aan te duiden dat het beschikbaar is
+                                spray.setAttribute('glow', { active: true });
                             }
                         },
                         {
                             text: 'Wachten op ambulance', good: false, action: () => {
-                                gameOver('Wachten kost tijd. Kleine handelingen zoals desinfecteren kunnen wél levensreddend zijn.');
+                                gameOver('Wachten kost tijd. Behandel de wond terwijl je wacht.');
                             }
                         }
                     ]
                 );
             }
             else if (step === 5) {
-                // ambulance is onderweg (maar full arrival waits until pleister)
+                // Na EHBO treatment
                 showPanel(
-                    '<strong>🚑 Ambulance onderweg</strong><br><br>' +
-                    'De ambulance is onderweg. Je hebt nu tijd om de wond te behandelen: pak de spray en daarna de pleister.',
+                    '<strong>✅ Prima gedaan!</strong><br><br>' +
+                    'Je hebt de wond behandeld en de ambulance is onderweg. Blijf bij het slachtoffer totdat de hulpdiensten arriveren.',
                     [
                         {
-                            text: 'Ik ga behandelen', good: true, action: () => {
+                            text: 'Wachten op ambulance', good: true, action: () => {
                                 panel.style.display = 'none';
-                                // laat items gloeien (beschikbaar) als ambulanceEnRoute true
-                                updateGlows();
-                            }
-                        },
-                        {
-                            text: 'Ik blijf alleen bij slachtoffer', good: false, action: () => {
-                                showFeedback('❌ Niet optimaal. Gebruik beschikbare middelen om tijdelijke zorg te bieden terwijl je wacht.', false);
                             }
                         }
                     ]
@@ -856,106 +778,96 @@ adb devices
         }
 
         // Open phone UI: toon toetsenbord zodat gebruiker zelf 112 kan intoetsen
-        function openPhone() {
+        // Eenvoudige telefoon UI: gebruiker belt 112
+        function openPhoneSimple() {
             panel.style.display = 'none';
             phone.style.display = 'flex';
-            phoneScreen.textContent = "Toets noodnummer:";
+            phoneScreen.textContent = "Toets het noodnummer:";
             phoneChoices.innerHTML = '';
 
-            // display number line
+            // Nummer invoer
             const numLine = document.createElement('div');
             numLine.id = 'phoneNumber';
-            numLine.style.fontSize = '28px';
+            numLine.style.fontSize = '32px';
+            numLine.style.fontWeight = 'bold';
             numLine.style.textAlign = 'center';
-            numLine.style.padding = '6px 0 12px 0';
+            numLine.style.padding = '12px 0 20px 0';
+            numLine.style.color = '#fff';
+            numLine.style.letterSpacing = '5px';
             numLine.textContent = '';
             phoneChoices.appendChild(numLine);
 
-            // keypad
+            // Keypad
             const keypad = document.createElement('div');
             keypad.style.display = 'grid';
             keypad.style.gridTemplateColumns = 'repeat(3, 1fr)';
             keypad.style.gap = '8px';
-            keypad.style.marginBottom = '10px';
+            keypad.style.marginBottom = '12px';
+            
             const digits = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'];
             digits.forEach(d => {
                 const b = document.createElement('button');
                 b.textContent = d;
                 b.className = 'phone-btn phone-good';
-                b.style.padding = '12px 6px';
+                b.style.padding = '16px 8px';
+                b.style.fontSize = '18px';
+                b.style.fontWeight = 'bold';
                 b.onclick = () => {
-                    numLine.textContent = (numLine.textContent + d).slice(0, 6); // max lengte
+                    numLine.textContent = (numLine.textContent + d).slice(0, 3);
                 };
                 keypad.appendChild(b);
             });
             phoneChoices.appendChild(keypad);
 
-            // controls row: clear, call, close
+            // Controls
             const controls = document.createElement('div');
             controls.style.display = 'flex';
             controls.style.gap = '8px';
+            controls.style.flexWrap = 'wrap';
+            
             const clearBtn = document.createElement('button');
-            clearBtn.textContent = 'Clear';
+            clearBtn.textContent = 'Wissen';
             clearBtn.className = 'phone-btn phone-bad';
+            clearBtn.style.flex = '1';
             clearBtn.onclick = () => { numLine.textContent = ''; };
+            
             const callBtn = document.createElement('button');
-            callBtn.textContent = 'Bellen';
+            callBtn.textContent = 'BELLEN';
             callBtn.className = 'phone-btn phone-good';
+            callBtn.style.flex = '2';
+            callBtn.style.fontSize = '16px';
+            callBtn.style.fontWeight = 'bold';
             callBtn.onclick = () => {
                 const number = numLine.textContent;
                 if (number === '112') {
-                    // correct: ga door
-                    phoneScreen.textContent = "112 centrale: Verbonden. Wat is uw noodmelding?";
+                    phoneScreen.textContent = "112 centraal: Ambulance is onderweg!";
                     phoneChoices.innerHTML = '';
-                    setTimeout(() => phoneStep2(), 600);
-                } else {
-                    phoneScreen.textContent = '112 centrale: Ongeldig nummer. Probeer opnieuw.';
+                    
+                    const msg = document.createElement('div');
+                    msg.textContent = 'Prima gedaan! Je hebt hulp geroepen.';
+                    msg.style.color = '#fff';
+                    msg.style.textAlign = 'center';
+                    msg.style.padding = '20px';
+                    msg.style.fontSize = '16px';
+                    phoneChoices.appendChild(msg);
+                    
                     setTimeout(() => {
-                        phoneScreen.textContent = "Toets noodnummer:";
-                        numLine.textContent = '';
+                        phone.style.display = 'none';
+                        startAmbulanceRun();
+                        setTimeout(() => nextStep(), 100);
+                    }, 1500);
+                } else {
+                    phoneScreen.textContent = '❌ Ongeldig nummer!';
+                    numLine.textContent = '';
+                    setTimeout(() => {
+                        phoneScreen.textContent = "Toets het noodnummer:";
                     }, 1200);
                 }
             };
-            const closeBtn = document.createElement('button');
-            closeBtn.textContent = 'Sluiten';
-            closeBtn.className = 'phone-btn';
-            closeBtn.onclick = () => { phone.style.display = 'none'; };
+            
             controls.appendChild(clearBtn);
             controls.appendChild(callBtn);
-            controls.appendChild(closeBtn);
             phoneChoices.appendChild(controls);
-        }
-
-        function phoneStep2() {
-            phoneScreen.textContent = "112 centrale: Zijn er gewonden?";
-            phoneChoices.innerHTML = '';
-            const yes = document.createElement('button');
-            yes.textContent = "Ja, een persoon is aangereden";
-            yes.className = 'phone-btn phone-good';
-            yes.onclick = () => {
-                phoneScreen.textContent = "112 centrale: Een ambulance wordt gestuurd.";
-                phoneChoices.innerHTML = '';
-                setTimeout(() => {
-                    phone.style.display = 'none';
-                    startAmbulanceRun();
-                    // ga naar EHBO stap
-                    setTimeout(() => nextStep(), 50);
-                }, 800);
-            };
-            const no = document.createElement('button');
-            no.textContent = "Nee, alleen blikschade";
-            no.className = 'phone-btn phone-bad';
-            no.onclick = () => {
-                phoneScreen.textContent = "112 centrale: De centralist stuurt geen ambulance.";
-                phoneChoices.innerHTML = '';
-                const retry = document.createElement('button');
-                retry.textContent = "Opnieuw proberen";
-                retry.className = 'phone-btn phone-good';
-                retry.onclick = () => { phone.style.display = 'none'; reset(); };
-                phoneChoices.appendChild(retry);
-            };
-            phoneChoices.appendChild(yes);
-            phoneChoices.appendChild(no);
         }
 
         // Start ambulance 'en route' — nadert, maar arriveert pas volledig na pleister
@@ -1037,6 +949,7 @@ adb devices
 
         function reset() {
             step = 0; crashed = false; carMoving = false;
+            ehboStep = 0; // Reset EHBO progress
             // zet auto aan de andere kant (z = -25) zodat hij van de andere kant komt
             car.setAttribute('position', '0 0 -25'); car.setAttribute('rotation', '0 0 0');
             // spawn: recht tegenover slachtoffer (jet gebruiker kan zelf lopen)
