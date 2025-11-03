@@ -889,7 +889,7 @@ adb devices
 
                 // Probeer thumbstick axes te krijgen via verschillende methodes
                 let x = 0, z = 0;
-                
+
                 // Methode 1: via directe gamepad API - probeer beide mogelijke indices
                 const gamepads = navigator.getGamepads();
                 if (gamepads) {
@@ -914,7 +914,7 @@ adb devices
                         }
                     }
                 }
-                
+
                 // Methode 2: via oculus-touch-controls component als beschikbaar
                 if (Math.abs(x) < 0.05 && Math.abs(z) < 0.05 && el.components && el.components['oculus-touch-controls']) {
                     const touchComp = el.components['oculus-touch-controls'];
@@ -1293,8 +1293,8 @@ adb devices
                 t.setAttribute('scale', '1.2 1.2 1.2');
                 t.setAttribute('font-size', '64');
                 btn.appendChild(t);
+                // ONLY gaze-confirm for VR buttons - prevent double triggering!
                 btn.addEventListener('gaze-confirm', () => { hideVrPanel(); opt.action && opt.action(); });
-                btn.addEventListener('click', () => { hideVrPanel(); opt.action && opt.action(); });
                 btnContainer.appendChild(btn);
             });
             hud.setAttribute('visible', 'true');
