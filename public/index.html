@@ -307,7 +307,7 @@ adb devices
 
         <a-box id="plaster" width="0.28" height="0.08" depth="0.14" color="#f7dc6f" position="1.2 0.04 1.4"
             class="interactable" visible="false"></a-box>
-        <a-text id="plasterLabel" value="Pleister" align="center" color="#111" position="1.2 0.6 1.4"
+        <a-text id="plasterLabel" value="Pleister" align="center" color="#fff" position="1.2 0.6 1.4"
             scale="0.6 0.6 0.6" visible="false"></a-text>
 
         <!-- Ambulance (komt vanaf andere kant dan de impact) -->
@@ -584,8 +584,10 @@ adb devices
                     // drop the spray back to spawn
                     dropItem('spray', { x: 0.4, y: 0.2, z: 1.4 });
                     heldItem = null;
+                    // ACTIVEER glow voor pleister nu
+                    plaster.setAttribute('glow', { active: true });
                     showFeedback('✅ Wond gedesinfecteerd met spray.', true, () => {
-                        // enable plaster glow now
+                        // update glow states
                         updateGlows();
                     });
                 } else {
@@ -645,12 +647,17 @@ adb devices
         }
 
         function updateGlows() {
-            // items glow only when EHBO stage active and ambulance is en route
-            const activeBase = (step >= 4 && ambulanceEnRoute);
-            spray.setAttribute('glow', { active: (activeBase && !woundDisinfected) });
-            plaster.setAttribute('glow', { active: (activeBase && woundDisinfected && !plasterApplied) });
+            // items glow when EHBO stage active (stap >= 4)
+            // glow spray when visible and not disinfected
+            const sprayActive = (step >= 4 && spray.getAttribute('visible') === 'true' && !woundDisinfected);
+            spray.setAttribute('glow', { active: sprayActive });
+            
+            // glow plaster when visible, disinfected but not applied
+            const plasterActive = (step >= 4 && plaster.getAttribute('visible') === 'true' && woundDisinfected && !plasterApplied);
+            plaster.setAttribute('glow', { active: plasterActive });
+            
             // highlight wound location in a distinct pulsing color while treatable
-            const woundActive = (step >= 4 && ambulanceEnRoute && !woundDisinfected);
+            const woundActive = (step >= 4 && spray.getAttribute('visible') === 'true' && !woundDisinfected);
             if (woundActive) {
                 // pulse scale + color to draw attention
                 wound.setAttribute('animation__pulse', 'property: scale; dir: alternate; dur: 700; to: 1.35 1.35 1.35; loop: true');
@@ -689,6 +696,7 @@ adb devices
 
         function nextStep() {
             step++;
+            console.log('=== NEXT STEP ===', 'Step now:', step);
             // Zorg dat de 'Lees vraag' knop altijd de huidige vraag toont
             if (step === 1) {
                 // Stap 1: eigen veiligheid -> gaze check
@@ -726,11 +734,12 @@ adb devices
                 );
             }
             else if (step === 3) {
+                console.log('STEP 3: Showing 112 phone question');
                 showQuestion(
                     '<strong>☎️ Stap 3 – Bel 112</strong><br><br>' +
                     'Wat moet je doen zodra je vaststelt dat er mogelijk gewonden zijn?',
                     [
-                        { text: 'A. Je belt 112 en vertelt wat er is gebeurd', correct: true, feedback: 'Juist — bel 112 en geef locatie en aantal gewonden door.', next: () => openPhone() },
+                        { text: 'A. Je belt 112 en vertelt wat er is gebeurd', correct: true, feedback: 'Juist — bel 112 en geef locatie en aantal gewonden door.', next: () => { console.log('OPENING PHONE'); openPhone(); } },
                         { text: 'B. Je wacht even of hij zelf opstaat', correct: false, feedback: 'Wachten kost waardevolle tijd; bel altijd bij mogelijk ernstig letsel.' },
                         { text: 'C. Je zoekt iemand anders die misschien wil bellen', correct: false, feedback: 'Je kunt iemand vragen, maar jij bent aanwezig — bel direct.' }
                     ]
@@ -751,13 +760,15 @@ adb devices
                                 plaster.setAttribute('visible', true);
                                 sprayLabel.setAttribute('visible', true);
                                 plasterLabel.setAttribute('visible', true);
-                                // maak items nu pas interactief en zet glow-standaard
+                                // maak items nu pas interactief en activeer glow DIRECT
                                 spray.setAttribute('pickable', '');
                                 plaster.setAttribute('pickable', '');
-                                spray.setAttribute('glow', { active: false });
-                                plaster.setAttribute('glow', { active: false });
-                                // pickable-component aanwezig; glow activeert zodra ambulanceEnRoute true
-                                updateGlows();
+                                // ACTIVEER glow ONMIDDELLIJK zodat gebruiker ziet dat deze items beschikbaar zijn
+                                spray.setAttribute('glow', { active: true });
+                                plaster.setAttribute('glow', { active: false }); // plaster gloeidt pas nadat spray gebruikt is
+                                // Activeer wond pulse als reminder
+                                wound.setAttribute('animation__pulse', 'property: scale; dir: alternate; dur: 700; to: 1.35 1.35 1.35; loop: true');
+                                wound.setAttribute('animation__color', 'property: color; dir: alternate; dur: 700; to: #ff6b6b; loop: true');
                             }
                         },
                         {
