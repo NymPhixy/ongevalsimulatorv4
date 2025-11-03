@@ -219,10 +219,8 @@ adb devices
     <a-scene collision-check background="color: #aed9ff" vr-mode-ui="enabled: true">
         <!-- Camera Rig met VR controllers en thumbstick locomotion -->
         <a-entity id="cameraRig" position="0 0 6" movement-controls="controls: checkpoint, keyboard; speed: 0.15">
-            <!-- Camera met look-controls en raycaster voor gaze detection -->
-            <a-entity id="head" camera look-controls position="0 1.6 0"
-                raycaster="objects: .gazeTarget; far: 10"
-                cursor="fuse: false; rayOrigin: mouse"></a-entity>
+            <!-- Camera met look-controls -->
+            <a-entity id="head" camera look-controls position="0 1.6 0"></a-entity>
 
             <!-- Linker hand controller: locomotion -->
             <a-entity id="leftHand" oculus-touch-controls="hand: left" thumbstick-locomotion>
@@ -230,7 +228,7 @@ adb devices
 
             <!-- Rechter hand controller: raycaster voor interacties -->
             <a-entity id="rightHand" oculus-touch-controls="hand: right" laser-controls="hand: right"
-                raycaster="objects: .interactable, .phone-btn-vr; far: 10; lineColor: cyan; lineOpacity: 0.5"
+                raycaster="objects: .interactable, .gazeTarget, .phone-btn-vr; far: 10; lineColor: cyan; lineOpacity: 0.5"
                 line="color: cyan; opacity: 0.5">
             </a-entity>
         </a-entity>
@@ -399,13 +397,13 @@ adb devices
             <a-cone radius-bottom="0.6" radius-top="0" height="0.9" color="#ffffff" position="0 0.51 0"></a-cone>
         </a-entity>
 
-        <!-- Look targets (balletjes) - alleen voor camera gaze, niet voor controller -->
-        <a-sphere id="lookLeft" color="#ffd166" radius="0.22" position="-1.2 1.6 5.6" class="gazeTarget"
+        <!-- Look targets (balletjes) - klik met trigger om te activeren -->
+        <a-sphere id="lookLeft" color="#ffd166" radius="0.22" position="-1.2 1.6 5.6" class="gazeTarget interactable"
             visible="true"></a-sphere>
-        <a-sphere id="lookRight" color="#ffd166" radius="0.22" position="1.2 1.6 5.6" class="gazeTarget"
+        <a-sphere id="lookRight" color="#ffd166" radius="0.22" position="1.2 1.6 5.6" class="gazeTarget interactable"
             visible="true"></a-sphere>
-        <a-text id="lookHint" value="Kijk naar de balletjes om je omgeving te checken" align="center"
-            color="#fff" position="0 2 5.6" scale="0.95 0.95 0.95" visible="true"></a-text>
+        <a-text id="lookHint" value="Richt op de balletjes en druk trigger om te checken" align="center" color="#fff"
+            position="0 2 5.6" scale="0.95 0.95 0.95" visible="true"></a-text>
 
         <!-- Licht -->
         <a-entity light="type: ambient; intensity: 0.8"></a-entity>
@@ -561,7 +559,11 @@ adb devices
         });
 
         function showPanel(html, options = []) {
-            if (inVRMode) {
+            // Check altijd of we in VR mode zijn (voor zekerheid)
+            const sceneEl = document.querySelector('a-scene');
+            const actuallyInVR = sceneEl && sceneEl.is('vr-mode');
+            
+            if (actuallyInVR || inVRMode) {
                 // VR mode: creëer 3D panel in de wereld
                 createVRPanel(html, options);
             } else {
@@ -582,6 +584,7 @@ adb devices
         // Creëer 3D panel voor VR
         function createVRPanel(html, options = []) {
             const scene = document.querySelector('a-scene');
+            const camera = document.getElementById('head');
 
             // Verwijder oude VR panel als die bestaat
             const oldPanel = document.getElementById('vrPanel');
@@ -589,12 +592,21 @@ adb devices
 
             const vrPanel = document.createElement('a-entity');
             vrPanel.setAttribute('id', 'vrPanel');
-            vrPanel.setAttribute('position', '0 1.6 4.5');
+            
+            // Positioneer het panel voor de camera
+            // In VR is de camera op hoogte 1.6, dus panel ook op die hoogte
+            // Plaats het 2 meter voor de camera
+            const cameraRig = document.getElementById('cameraRig');
+            const rigPos = cameraRig ? cameraRig.getAttribute('position') : { x: 0, y: 0, z: 6 };
+            vrPanel.setAttribute('position', `${rigPos.x} 1.6 ${rigPos.z - 2}`);
+            
+            // Laat panel naar camera kijken
+            vrPanel.setAttribute('look-at', '#head');
 
             // Background
             const bg = document.createElement('a-plane');
-            bg.setAttribute('width', '2');
-            bg.setAttribute('height', '1.2');
+            bg.setAttribute('width', '2.5');
+            bg.setAttribute('height', '1.5');
             bg.setAttribute('color', '#1a1a2e');
             bg.setAttribute('opacity', '0.95');
             vrPanel.appendChild(bg);
@@ -604,12 +616,12 @@ adb devices
 
             // Message text
             const messageText = document.createElement('a-text');
-            messageText.setAttribute('value', textOnly.substring(0, 200)); // Limit length
+            messageText.setAttribute('value', textOnly.substring(0, 250)); // Limit length
             messageText.setAttribute('align', 'center');
             messageText.setAttribute('color', '#fff');
-            messageText.setAttribute('position', '0 0.3 0.01');
-            messageText.setAttribute('width', '1.8');
-            messageText.setAttribute('wrap-count', '35');
+            messageText.setAttribute('position', '0 0.4 0.01');
+            messageText.setAttribute('width', '2.2');
+            messageText.setAttribute('wrap-count', '40');
             vrPanel.appendChild(messageText);
 
             // Buttons
@@ -825,11 +837,8 @@ adb devices
             schema: { id: { type: 'string' } },
             init: function () {
                 const el = this.el;
-                let gazeTimer = null;
-                let gazeProgress = 0;
-                const gazeDuration = 1500; // 1.5 seconden kijken
                 
-                const handleGazeComplete = () => {
+                const handleInteraction = () => {
                     // Alleen actief in stap 1
                     if (step !== 1) return;
 
@@ -852,35 +861,8 @@ adb devices
                     }
                 };
 
-                // Gebruik mouseenter/mouseleave voor camera gaze (werkt ook in VR)
-                el.addEventListener('mouseenter', (evt) => {
-                    // Check of het van de camera komt (niet van controller raycaster)
-                    if (step !== 1 || !evt.detail || !evt.detail.intersection) return;
-                    
-                    // Start gaze timer
-                    const startTime = Date.now();
-                    gazeTimer = setInterval(() => {
-                        gazeProgress = Date.now() - startTime;
-                        const scale = 1 + (gazeProgress / gazeDuration) * 0.3;
-                        el.setAttribute('scale', `${scale} ${scale} ${scale}`);
-                        
-                        if (gazeProgress >= gazeDuration) {
-                            clearInterval(gazeTimer);
-                            handleGazeComplete();
-                        }
-                    }, 50);
-                });
-                
-                el.addEventListener('mouseleave', (evt) => {
-                    if (gazeTimer) {
-                        clearInterval(gazeTimer);
-                        gazeTimer = null;
-                    }
-                    if (step === 1 && !lookedLeft && !lookedRight) {
-                        el.setAttribute('scale', '1 1 1');
-                    }
-                    gazeProgress = 0;
-                });
+                // Simpel: gebruik click event (werkt met controller trigger)
+                el.addEventListener('click', handleInteraction);
             }
         });
 
